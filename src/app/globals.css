@@ -1,26 +1,116 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
+@layer base {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --primary: #436153;
+    --primary-container: #5b7a6b;
+    --on-primary: #ffffff;
+    --on-primary-container: #ecfff3;
+    --primary-fixed: #c8ead8;
+    --primary-fixed-dim: #adcebd;
+    --on-primary-fixed: #022016;
+    --on-primary-fixed-variant: #2f4d3f;
+
+    --surface: #faf9f7;
+    --surface-container-lowest: #ffffff;
+    --surface-container-low: #f4f4f1;
+    --surface-container: #eeeeeb;
+    --surface-container-high: #e9e8e6;
+    --surface-container-highest: #e3e2e0;
+    --surface-variant: #e3e2e0;
+
+    --on-surface: #1a1c1b;
+    --on-surface-variant: #424844;
+    --outline: #727974;
+    --outline-variant: #c1c8c3;
+
+    --secondary: #625e52;
+    --secondary-container: #e6dfd0;
+    --on-secondary-container: #676256;
+    --secondary-fixed: #e9e2d3;
+    --secondary-fixed-dim: #ccc6b7;
+
+    --tertiary: #78514f;
+    --tertiary-container: #936967;
+    --tertiary-fixed: #ffdad8;
+
+    --error: #ba1a1a;
+    --error-container: #ffdad6;
+    --on-error-container: #93000a;
+  }
+
+  body {
+    font-family: 'Inter', sans-serif;
+    background-color: #F0EEE7;
+    color: #1a1c1b;
   }
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.material-symbols-filled {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-smoothing: antialiased;
+  font-variation-settings: 'FILL' 1, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+}
+
+.bento-shadow {
+  box-shadow: 0px 4px 20px rgba(26, 26, 26, 0.04);
+}
+
+.card-shadow {
+  box-shadow: 0px 4px 20px rgba(26, 26, 26, 0.04);
+}
+
+.shadow-ambient {
+  box-shadow: 0px 4px 20px rgba(26, 26, 26, 0.04);
+}
+
+.shadow-floating {
+  box-shadow: 0px 12px 32px rgba(138, 133, 120, 0.12);
+}
+
+/* Hide scrollbars */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+@keyframes drawLine {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.sparkline-path {
+  stroke-dasharray: 1000;
+  stroke-dashoffset: 1000;
+  animation: drawLine 2s ease-out forwards;
 }

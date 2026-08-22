@@ -1,8 +1,16 @@
+"use client";
+
+import { useAppContext } from "@/context/AppContext";
+import { ProfileView } from "@/components/views/ProfileView";
+
 export default function ProfilePage() {
+  const { currentUser, setEditProfileModalOpen, setApplyLeaveModalOpen } = useAppContext();
+
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">Profile</h1>
-      {/* TODO: view/edit personal details, job details, salary, documents, profile picture */}
-    </div>
+    <ProfileView
+      currentUser={currentUser}
+      onEditProfile={() => setEditProfileModalOpen(true)}
+      onOpenApplyLeave={() => setApplyLeaveModalOpen(true)}
+    />
   );
 }

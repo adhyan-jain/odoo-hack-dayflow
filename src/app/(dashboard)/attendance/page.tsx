@@ -1,8 +1,17 @@
+"use client";
+
+import { useAppContext } from "@/context/AppContext";
+import { AttendanceView } from "@/components/views/AttendanceView";
+
 export default function AttendancePage() {
+  const { currentUser, punches, weeklyDays, handleAddPunch } = useAppContext();
+
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">Attendance</h1>
-      {/* TODO: daily/weekly view + check-in/check-out; own records for employee, all for HR */}
-    </div>
+    <AttendanceView
+      currentUser={currentUser}
+      punches={punches}
+      weeklyDays={weeklyDays}
+      onAddPunch={handleAddPunch}
+    />
   );
 }

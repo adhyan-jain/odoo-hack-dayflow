@@ -38,11 +38,12 @@ export const env = createEnv({
     // code" rule this variable's Proxy guard enforces at runtime.
     SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
 
-    // Gmail SMTP relay credentials — all optional. lib/email/mailer.ts
-    // falls back to console.log when unset (zero-config demo path).
-    GMAIL_USER: z.string().email().optional(),
-    GMAIL_APP_PASSWORD: z.string().min(1).optional(),
-    GMAIL_SENDER_NAME: z.string().min(1).default('Dayflow'),
+    // Brevo transactional email API credentials — all optional.
+    // lib/email/mailer.ts falls back to console.log when unset
+    // (zero-config demo path).
+    BREVO_API_KEY: z.string().min(1).optional(),
+    BREVO_SENDER_EMAIL: z.string().email().optional(),
+    BREVO_SENDER_NAME: z.string().min(1).default('Dayflow'),
   },
   client: {
     NEXT_PUBLIC_SUPABASE_URL: z.string().url('NEXT_PUBLIC_SUPABASE_URL must be a valid URL'),
@@ -58,9 +59,9 @@ export const env = createEnv({
   },
   runtimeEnv: {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
-    GMAIL_USER: process.env.GMAIL_USER,
-    GMAIL_APP_PASSWORD: process.env.GMAIL_APP_PASSWORD,
-    GMAIL_SENDER_NAME: process.env.GMAIL_SENDER_NAME,
+    BREVO_API_KEY: process.env.BREVO_API_KEY,
+    BREVO_SENDER_EMAIL: process.env.BREVO_SENDER_EMAIL,
+    BREVO_SENDER_NAME: process.env.BREVO_SENDER_NAME,
     NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_BYPASS_AUTH: process.env.NEXT_PUBLIC_BYPASS_AUTH,

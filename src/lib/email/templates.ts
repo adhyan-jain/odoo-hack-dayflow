@@ -1,7 +1,7 @@
 /**
  * @file lib/email/templates.ts
  * @what Plain-HTML email bodies for the transactional emails Dayflow sends
- *       via Gmail SMTP (see lib/email/mailer.ts). Kept as small pure functions so
+ *       via Brevo (see lib/email/mailer.ts). Kept as small pure functions so
  *       route handlers stay focused on business logic.
  */
 

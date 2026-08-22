@@ -8,62 +8,58 @@
 //       "given a type + target employee id, look up their email and deliver
 //       a message." All the "who/when/why" already happened in SQL.
 //
-//       Emails are sent over Gmail's SMTP relay (smtp.gmail.com:587) via
-//       denomailer. If GMAIL_USER / GMAIL_APP_PASSWORD are not set as
-//       function secrets, this falls back to console.log — zero-config demo
-//       path, same convention as the Next.js app's lib/email/mailer.ts.
+//       Emails are sent via Brevo's transactional email HTTP API
+//       (https://api.brevo.com/v3/smtp/email). If BREVO_API_KEY /
+//       BREVO_SENDER_EMAIL are not set as function secrets, this falls back
+//       to console.log — zero-config demo path, same convention as the
+//       Next.js app's lib/email/mailer.ts.
 //
-//       Gmail requires an "App Password" (Google Account → Security →
-//       2-Step Verification → App passwords), not the normal account
-//       password.
+//       BREVO_API_KEY is a v3 API key (Brevo → Settings → SMTP & API → API
+//       Keys). BREVO_SENDER_EMAIL must be a sender verified on the account.
 //
 // Auth: caller must send `Authorization: Bearer <service_role_key>` — this
 //       function is only ever invoked by the trusted pg_net cron job (or an
 //       admin manually testing it), never directly by a browser client.
 //
 // Deploy: supabase functions deploy send-notification
-// Secrets: supabase secrets set GMAIL_USER=... GMAIL_APP_PASSWORD=...
+// Secrets: supabase secrets set BREVO_API_KEY=... BREVO_SENDER_EMAIL=...
 // =============================================================================
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
 
-interface NotificationPayload {
-  type: "leave_escalated";
-  leaveRequestId: string;
-  notifyEmployeeId: string;
-}
+const BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
-async function sendGmail(to: { email: string; name?: string }, subject: string, htmlContent: string) {
-  const user = Deno.env.get("GMAIL_USER");
-  const pass = Deno.env.get("GMAIL_APP_PASSWORD");
-  if (!user || !pass) {
-    console.log("[send-notification] GMAIL_USER/GMAIL_APP_PASSWORD not set — logging instead of sending.", {
+async function sendBrevo(to: { email: string; name?: string }, subject: string, htmlContent: string) {
+  const apiKey = Deno.env.get("BREVO_API_KEY");
+  const senderEmail = Deno.env.get("BREVO_SENDER_EMAIL");
+  if (!apiKey || !senderEmail) {
+    console.log("[send-notification] BREVO_API_KEY/BREVO_SENDER_EMAIL not set — logging instead of sending.", {
       to,
       subject,
     });
     return;
   }
 
-  const senderName = Deno.env.get("GMAIL_SENDER_NAME") || "Dayflow";
-  const client = new SMTPClient({
-    connection: {
-      hostname: "smtp.gmail.com",
-      port: 587,
-      tls: false, // STARTTLS negotiated on connect for port 587
-      auth: { username: user, password: pass },
+  const senderName = Deno.env.get("BREVO_SENDER_NAME") || "Dayflow";
+
+  const res = await fetch(BREVO_API_URL, {
+    method: "POST",
+    headers: {
+      accept: "application/json",
+      "content-type": "application/json",
+      "api-key": apiKey,
     },
+    body: JSON.stringify({
+      sender: { email: senderEmail, name: senderName },
+      to: [to],
+      subject,
+      htmlContent,
+    }),
   });
 
-  try {
-    await client.send({
-      from: `${senderName} <${user}>`,
-      to: to.name ? `${to.name} <${to.email}>` : to.email,
-      subject,
-      html: htmlContent,
-    });
-  } finally {
-    await client.close();
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new Error(`[send-notification] Brevo API responded ${res.status}: ${body}`);
   }
 }
 
@@ -127,7 +123,7 @@ Deno.serve(async (req: Request) => {
         <p>Please review it in the Time Off tab of Dayflow.</p>
       </div>`;
 
-    await sendGmail({ email: notifyEmployee.email, name: notifyEmployee.full_name }, subject, htmlContent);
+    await sendBrevo({ email: notifyEmployee.email, name: notifyEmployee.full_name }, subject, htmlContent);
 
     return new Response(JSON.stringify({ ok: true }), { status: 200 });
   } catch (err) {

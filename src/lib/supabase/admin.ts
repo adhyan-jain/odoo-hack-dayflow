@@ -22,6 +22,7 @@
  * See: https://github.com/supabase/supabase-js/issues/1057
  */
 
+import 'server-only';
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL!;

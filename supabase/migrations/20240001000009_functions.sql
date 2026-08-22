@@ -57,6 +57,7 @@ returns table (employee_id uuid, depth int)
 language sql
 stable
 security definer
+set search_path = public
 as $$
   with recursive reportee_tree as (
     -- Base case: direct reports as of `as_of`
@@ -85,7 +86,8 @@ as $$
   select employee_id, depth from reportee_tree;
 $$;
 
-grant execute on function public.get_reportees(uuid, date) to authenticated;
+revoke execute on function public.get_reportees(uuid, date) from public, authenticated;
+grant execute on function public.get_reportees(uuid, date) to service_role;
 
 -- =============================================================================
 -- 2. get_manager_chain(employee_uuid, as_of)
@@ -105,6 +107,7 @@ returns table (manager_id uuid, depth int)
 language sql
 stable
 security definer
+set search_path = public
 as $$
   with recursive manager_chain as (
     -- Base case: direct manager of employee_uuid
@@ -133,7 +136,8 @@ as $$
   select manager_id, depth from manager_chain;
 $$;
 
-grant execute on function public.get_manager_chain(uuid, date) to authenticated;
+revoke execute on function public.get_manager_chain(uuid, date) from public, authenticated;
+grant execute on function public.get_manager_chain(uuid, date) to service_role;
 
 -- =============================================================================
 -- 3. get_current_salary(employee_uuid)
@@ -155,6 +159,7 @@ returns setof public.salary_records
 language sql
 stable
 security definer
+set search_path = public
 as $$
   select *
   from public.salary_records
@@ -164,7 +169,8 @@ as $$
   limit 1;
 $$;
 
-grant execute on function public.get_current_salary(uuid) to authenticated;
+revoke execute on function public.get_current_salary(uuid) from public, authenticated;
+grant execute on function public.get_current_salary(uuid) to service_role;
 
 -- =============================================================================
 -- 4. get_salary_at(employee_uuid, as_of)
@@ -186,6 +192,7 @@ returns setof public.salary_records
 language sql
 stable
 security definer
+set search_path = public
 as $$
   select *
   from public.salary_records
@@ -196,4 +203,5 @@ as $$
   limit 1;
 $$;
 
-grant execute on function public.get_salary_at(uuid, date) to authenticated;
+revoke execute on function public.get_salary_at(uuid, date) from public, authenticated;
+grant execute on function public.get_salary_at(uuid, date) to service_role;

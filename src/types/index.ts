@@ -1,6 +1,6 @@
 // ── Frontend UI types (owned by frontend dev, do not modify) ─────────────────
 
-export type UserRole = 'employee' | 'admin';
+export type UserRole = 'employee' | 'hr' | 'admin';
 
 export interface UserProfile {
   id: string;

@@ -32,10 +32,10 @@ export async function GET(
   const targetEmployeeId = searchParams.get('employee_id') ?? user.id;
   const month = searchParams.get('month') ?? new Date().toISOString().slice(0, 7);
 
-  const monthRegex = /^\d{4}-\d{2}$/;
+  const monthRegex = /^\d{4}-(0[1-9]|1[0-2])$/;
   if (!monthRegex.test(month)) {
     return NextResponse.json(
-      { data: null, error: 'month must be in YYYY-MM format' },
+      { data: null, error: 'month must be in YYYY-MM format with valid month range 01-12' },
       { status: 400 },
     );
   }
@@ -57,7 +57,7 @@ export async function GET(
   const access = await canAccess(
     requestingEmployee,
     targetEmployeeId,
-    'salary',
+    'payroll',
     'read',
   );
 

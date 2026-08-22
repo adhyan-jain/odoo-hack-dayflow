@@ -144,7 +144,7 @@ export const LeaveManagementView: React.FC<LeaveManagementViewProps> = ({
             filteredRequests.map((req) => {
               const isPending = req.status === 'Pending Review';
               const isApproved = req.status === 'Approved';
-              const isRejected = req.status === 'Rejected';
+              const isEscalated = req.status === 'Escalated';
 
               return (
                 <div
@@ -173,7 +173,7 @@ export const LeaveManagementView: React.FC<LeaveManagementViewProps> = ({
                       className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${
                         req.leaveType === 'Sick Leave'
                           ? 'bg-[#fce4e4] text-[#e02424]'
-                          : req.leaveType === 'Annual Leave'
+                          : req.leaveType === 'Paid Leave'
                           ? 'bg-[#e1effe] text-[#1c64f2]'
                           : 'bg-[#e6dfd0] text-[#676256]'
                       }`}
@@ -181,7 +181,7 @@ export const LeaveManagementView: React.FC<LeaveManagementViewProps> = ({
                       <span className="material-symbols-outlined text-[16px]">
                         {req.leaveType === 'Sick Leave'
                           ? 'medical_services'
-                          : req.leaveType === 'Annual Leave'
+                          : req.leaveType === 'Paid Leave'
                           ? 'flight_takeoff'
                           : 'schedule'}
                       </span>
@@ -204,7 +204,7 @@ export const LeaveManagementView: React.FC<LeaveManagementViewProps> = ({
                     <div className="flex items-center gap-2">
                       <div
                         className={`w-2 h-2 rounded-full ${
-                          isPending
+                          isPending || isEscalated
                             ? 'bg-[#d97706]'
                             : isApproved
                             ? 'bg-[#5b7a6b]'
@@ -213,7 +213,7 @@ export const LeaveManagementView: React.FC<LeaveManagementViewProps> = ({
                       />
                       <span
                         className={`text-xs font-semibold ${
-                          isPending
+                          isPending || isEscalated
                             ? 'text-[#b45309]'
                             : isApproved
                             ? 'text-[#436153]'
@@ -243,7 +243,12 @@ export const LeaveManagementView: React.FC<LeaveManagementViewProps> = ({
                         </button>
                       </>
                     )}
-                    {!isPending && (
+                    {isEscalated && (
+                      <span className="text-xs text-[#b45309] font-medium italic">
+                        Escalated to skip-level manager
+                      </span>
+                    )}
+                    {!isPending && !isEscalated && (
                       <span className="text-xs text-[#727974] font-medium italic">
                         Resolved
                       </span>

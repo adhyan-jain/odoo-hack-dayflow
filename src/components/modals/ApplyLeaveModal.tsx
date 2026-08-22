@@ -1,6 +1,12 @@
 import React, { useState } from 'react';
 import { UserProfile, LeaveType, LeaveRequest } from '@/types';
 
+function addDays(n: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+
 interface ApplyLeaveModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -14,9 +20,9 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
   currentUser,
   onSubmit,
 }) => {
-  const [leaveType, setLeaveType] = useState<LeaveType>('Annual Leave');
-  const [startDate, setStartDate] = useState('2023-11-12');
-  const [endDate, setEndDate] = useState('2023-11-14');
+  const [leaveType, setLeaveType] = useState<LeaveType>('Paid Leave');
+  const [startDate, setStartDate] = useState(() => addDays(1));
+  const [endDate, setEndDate] = useState(() => addDays(3));
   const [notes, setNotes] = useState('');
 
   if (!isOpen) return null;
@@ -38,19 +44,14 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const formatDate = (dStr: string) => {
-      const d = new Date(dStr);
-      return d.toLocaleDateString('en-US', { month: 'short', day: '2-digit', year: 'numeric' });
-    };
-
     onSubmit({
       employeeName: currentUser.name,
       employeeDept: currentUser.department,
       employeeAvatar: currentUser.avatar,
       employeeId: currentUser.employeeId,
       leaveType,
-      startDate: formatDate(startDate),
-      endDate: formatDate(endDate),
+      startDate,
+      endDate,
       durationDays: daysCount,
       status: 'Pending Review',
       notes,
@@ -100,10 +101,9 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
               onChange={(e) => setLeaveType(e.target.value as LeaveType)}
               className="w-full h-11 rounded-full bg-[#f4f4f1] border-0 px-4 text-sm text-[#1a1c1b] focus:ring-2 focus:ring-[#5b7a6b] outline-none"
             >
-              <option value="Annual Leave">Annual Vacation Leave</option>
-              <option value="Sick Leave">Medical / Sick Leave</option>
-              <option value="Personal Leave">Personal Leave / Emergency</option>
-              <option value="Maternity/Paternity">Parental Leave</option>
+              <option value="Paid Leave">Paid Leave</option>
+              <option value="Sick Leave">Sick / Medical Leave</option>
+              <option value="Unpaid Leave">Unpaid Leave</option>
             </select>
           </div>
 

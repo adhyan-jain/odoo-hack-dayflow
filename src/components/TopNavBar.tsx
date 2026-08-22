@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { UserProfile } from '@/types';
 import { NavTabId } from './SideNavBar';
 
+const BYPASS_AUTH = process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
+
 interface TopNavBarProps {
   currentTab: NavTabId;
   currentUser: UserProfile;
@@ -28,7 +30,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
   const getPageTitle = () => {
     switch (currentTab) {
       case 'dashboard':
-        return currentUser.role === 'admin' ? 'Dashboard' : 'Dayflow';
+        return currentUser.role !== 'employee' ? 'Dashboard' : 'Dayflow';
       case 'directory':
         return 'Employee Directory';
       case 'attendance':
@@ -56,9 +58,9 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
         <h1 className="font-semibold text-2xl md:text-3xl text-[#1a1c1b] tracking-tight">
           {getPageTitle()}
         </h1>
-        {currentTab === 'dashboard' && currentUser.role === 'admin' && (
+        {currentTab === 'dashboard' && currentUser.role !== 'employee' && (
           <span className="text-[#625e52] text-sm md:text-base font-normal hidden sm:inline">
-            Sarah Jenkins (Admin)
+            {currentUser.name} ({currentUser.role === 'admin' ? 'Admin' : 'HR'})
           </span>
         )}
       </div>
@@ -156,7 +158,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                     className="w-full text-left px-3 py-2 text-sm text-[#1a1c1b] hover:bg-[#f4f4f1] rounded-xl flex items-center gap-2.5 transition-colors cursor-pointer"
                   >
                     <span className="material-symbols-outlined text-[18px] text-[#5b7a6b]">swap_horiz</span>
-                    Switch Persona ({currentUser.role === 'employee' ? 'Sarah (Admin)' : 'Alex (Employee)'})
+                    {BYPASS_AUTH ? `Switch Persona (${currentUser.role === 'employee' ? 'Sarah (Admin)' : 'Alex (Employee)'})` : 'Sign Out & Switch Account'}
                   </button>
 
                   <button

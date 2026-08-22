@@ -39,7 +39,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({
           </p>
         </div>
 
-        {currentUser.role === 'admin' && (
+        {currentUser.role !== 'employee' && (
           <button
             id="btn-run-payroll"
             onClick={onOpenRunPayrollModal}

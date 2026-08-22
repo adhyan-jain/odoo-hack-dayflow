@@ -12,10 +12,8 @@ export interface UserProfile {
   email: string;
   phone: string;
   address: string;
-  birthDate: string;
   joinDate: string;
   tenure: string;
-  employmentType: string;
   manager: {
     name: string;
     title: string;
@@ -23,16 +21,16 @@ export interface UserProfile {
   };
   salary: {
     base: number;
-    bonusPercent: number;
-    equity: number;
+    hra: number;
+    specialAllowance: number;
   };
   avatar: string;
   leaveBalanceDays: number;
   attendanceRate: number;
 }
 
-export type LeaveType = 'Annual Leave' | 'Sick Leave' | 'Personal Leave' | 'Maternity/Paternity';
-export type LeaveStatus = 'Pending Review' | 'Approved' | 'Rejected';
+export type LeaveType = 'Paid Leave' | 'Sick Leave' | 'Unpaid Leave';
+export type LeaveStatus = 'Pending Review' | 'Approved' | 'Rejected' | 'Escalated';
 
 export interface LeaveRequest {
   id: string;

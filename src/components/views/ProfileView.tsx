@@ -11,7 +11,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   onEditProfile,
 }) => {
-  const isSarah = currentUser.id === 'usr-sarah';
+  const isSarah = currentUser.role === 'admin';
 
   const handleDownloadDoc = (docName: string) => {
     alert(`Downloading ${docName}...`);
@@ -107,13 +107,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 </p>
                 <p className="text-sm font-medium text-[#1a1c1b] mt-0.5">{currentUser.address}</p>
               </div>
-
-              <div>
-                <p className="text-xs text-[#625e52] font-semibold uppercase tracking-wider">
-                  Date of Birth
-                </p>
-                <p className="text-sm font-medium text-[#1a1c1b] mt-0.5">{currentUser.birthDate}</p>
-              </div>
             </div>
           </div>
         </div>
@@ -160,15 +153,6 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
               <div>
                 <p className="text-xs text-[#625e52] font-semibold uppercase tracking-wider">
-                  Employment Type
-                </p>
-                <p className="text-sm font-medium text-[#1a1c1b] mt-0.5">
-                  {currentUser.employmentType}
-                </p>
-              </div>
-
-              <div>
-                <p className="text-xs text-[#625e52] font-semibold uppercase tracking-wider">
                   Start Date &amp; Tenure
                 </p>
                 <p className="text-sm font-medium text-[#1a1c1b] mt-0.5">
@@ -203,19 +187,19 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
 
               <div>
                 <p className="text-xs text-[#625e52] font-semibold uppercase tracking-wider">
-                  Target Bonus
+                  HRA (House Rent Allowance)
                 </p>
                 <p className="text-sm font-medium text-[#1a1c1b] mt-0.5">
-                  {currentUser.salary.bonusPercent}% (Annual performance based)
+                  ${currentUser.salary.hra.toLocaleString()} <span className="text-xs font-normal text-[#625e52]">/ year</span>
                 </p>
               </div>
 
               <div>
                 <p className="text-xs text-[#625e52] font-semibold uppercase tracking-wider">
-                  Stock Grants
+                  Special Allowance
                 </p>
                 <p className="text-sm font-medium text-[#1a1c1b] mt-0.5">
-                  {currentUser.salary.equity.toLocaleString()} RSUs (Vested: {(currentUser.salary.equity / 2).toLocaleString()})
+                  ${currentUser.salary.specialAllowance.toLocaleString()} <span className="text-xs font-normal text-[#625e52]">/ year</span>
                 </p>
               </div>
             </div>

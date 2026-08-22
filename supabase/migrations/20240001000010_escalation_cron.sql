@@ -117,8 +117,17 @@ revoke execute on function public.escalate_overdue_leave_requests() from public;
 
 -- ── Schedule the cron job ─────────────────────────────────────────────────────
 -- Runs every 15 minutes (as per ARCHITECTURE.md §9 diagram).
--- We unschedule first to ensure idempotency.
-select cron.unschedule('escalate-overdue-leave');
+-- Unschedule first for idempotency — but only if the job already exists;
+-- cron.unschedule() raises on a fresh database where the job was never
+-- scheduled (e.g. the first `supabase db reset`/`start`), which would abort
+-- this entire migration.
+do $$
+begin
+  if exists (select 1 from cron.job where jobname = 'escalate-overdue-leave') then
+    perform cron.unschedule('escalate-overdue-leave');
+  end if;
+end;
+$$;
 
 select cron.schedule(
   'escalate-overdue-leave',     -- job name (unique, used to unschedule)

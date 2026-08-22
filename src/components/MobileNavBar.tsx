@@ -1,28 +1,32 @@
+'use client';
+
 import React from 'react';
+import Link from 'next/link';
+import { usePathname } from 'next/navigation';
 import { NavTabId } from './SideNavBar';
 
 interface MobileNavBarProps {
-  currentTab: NavTabId;
   onSelectTab: (tab: NavTabId) => void;
 }
 
-export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentTab, onSelectTab }) => {
-  const tabs = [
-    { id: 'dashboard' as NavTabId, label: 'Home', icon: 'dashboard' },
-    { id: 'directory' as NavTabId, label: 'Team', icon: 'group' },
-    { id: 'attendance' as NavTabId, label: 'Time', icon: 'schedule' },
-    { id: 'leave' as NavTabId, label: 'Leave', icon: 'calendar_month' },
-    { id: 'payroll' as NavTabId, label: 'Payroll', icon: 'payments' },
-    { id: 'profile' as NavTabId, label: 'Profile', icon: 'person' },
-  ];
+const TABS: { id: NavTabId; label: string; icon: string; href: string; match: (path: string) => boolean }[] = [
+  { id: 'employees', label: 'Employees', icon: 'groups', href: '/employees', match: (p) => p === '/employees' || p.startsWith('/employees/') },
+  { id: 'attendance', label: 'Attendance', icon: 'schedule', href: '/attendance', match: (p) => p.startsWith('/attendance') },
+  { id: 'leave', label: 'Time Off', icon: 'calendar_month', href: '/leave', match: (p) => p.startsWith('/leave') },
+  { id: 'profile', label: 'Profile', icon: 'person', href: '/profile', match: (p) => p.startsWith('/profile') },
+];
+
+export const MobileNavBar: React.FC<MobileNavBarProps> = ({ onSelectTab }) => {
+  const pathname = usePathname();
 
   return (
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-[#FFFFFF] border-t border-[#eeeeeb] flex justify-around items-center h-16 px-2 z-50 shadow-lg">
-      {tabs.map((tab) => {
-        const isActive = currentTab === tab.id;
+      {TABS.map((tab) => {
+        const isActive = tab.match(pathname || '');
         return (
-          <button
+          <Link
             key={tab.id}
+            href={tab.href}
             onClick={() => onSelectTab(tab.id)}
             className={`flex flex-col items-center justify-center flex-1 py-1 cursor-pointer transition-colors ${
               isActive ? 'text-[#5b7a6b]' : 'text-[#727974]'
@@ -35,7 +39,7 @@ export const MobileNavBar: React.FC<MobileNavBarProps> = ({ currentTab, onSelect
               {tab.icon}
             </span>
             <span className="text-[10px] font-medium mt-0.5">{tab.label}</span>
-          </button>
+          </Link>
         );
       })}
     </nav>

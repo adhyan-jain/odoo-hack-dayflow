@@ -13,7 +13,16 @@ import {
   PendingApproval,
   EmployeeRosterItem,
   PayrollRecord,
+  CompanySettingsUI,
+  CoverageWarning,
+  AttendanceDayRow,
+  AttendanceMonthSummary,
+  TeamCoverageConfig,
+  OrgRewindResponse,
+  createSalaryBreakdown,
+  DEFAULT_PROFILE_EXTRAS,
 } from '@/types';
+import type { LeaveType as LeaveTypeDb } from '@/lib/types';
 import {
   ALEX_PROFILE,
   SARAH_PROFILE,
@@ -47,6 +56,29 @@ import {
   reviewLeaveRequest,
   RUN_PAYROLL_UNAVAILABLE_MESSAGE,
   updateEmployeeProfile,
+  fetchCompanySettings,
+  updateCompanySettings,
+  createEmployee,
+  CreateEmployeeInput,
+  resolveSignInIdentifier,
+  changeOwnPassword,
+  updateCompensationVisibility,
+  reviseSalary,
+  SalaryComponentInput,
+  fetchCoverageWarning,
+  fetchMyReportees,
+  ReporteeEntry,
+  fetchOrgRewind,
+  fetchTeamCoverageConfig,
+  saveTeamCoverageConfig,
+  uploadLeaveAttachment,
+  uploadResumeFile,
+  getResumeSignedUrl,
+  removeResumeFile,
+  fetchAttendanceDayRoster,
+  fetchAttendanceMonthSummary,
+  fetchAttendanceDayRowsForEmployee,
+  Client,
 } from '@/lib/supabase/hrms';
 
 // Demo/showcase mode: skips real Supabase auth entirely (see proxy.ts / middleware.ts,
@@ -67,10 +99,11 @@ const EMPTY_PROFILE: UserProfile = {
   joinDate: '—',
   tenure: '—',
   manager: { name: '—', title: '—', avatar: '' },
-  salary: { base: 0, hra: 0, specialAllowance: 0 },
+  salary: createSalaryBreakdown(),
   avatar: '',
   leaveBalanceDays: 0,
   attendanceRate: 0,
+  ...DEFAULT_PROFILE_EXTRAS,
 };
 
 interface AppContextType {
@@ -81,6 +114,11 @@ interface AppContextType {
   currentTab: NavTabId;
   setCurrentTab: (tab: NavTabId) => void;
 
+  // Supabase client — null in demo/bypass-auth mode. New feature code that
+  // needs a direct RLS-scoped read/write (not covered by a handler below)
+  // should guard on `supabase !== null` before calling hrms.ts functions.
+  supabase: Client | null;
+
   actionItems: ActionItem[];
   recentActivities: ActivityItem[];
   pendingApprovals: PendingApproval[];
@@ -89,6 +127,9 @@ interface AppContextType {
   payrollRecords: PayrollRecord[];
   punches: AttendancePunch[];
   weeklyDays: DayAttendance[];
+  companySettings: CompanySettingsUI | null;
+  teamCoverageConfig: TeamCoverageConfig[];
+  myReportees: ReporteeEntry[];
 
   // Modals state
   applyLeaveModalOpen: boolean;
@@ -101,9 +142,11 @@ interface AppContextType {
   setNotificationsModalOpen: (open: boolean) => void;
   helpModalOpen: boolean;
   setHelpModalOpen: (open: boolean) => void;
+  createEmployeeModalOpen: boolean;
+  setCreateEmployeeModalOpen: (open: boolean) => void;
 
   handleSwitchUser: () => void;
-  handleSignIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  handleSignIn: (identifier: string, password: string) => Promise<{ error: string | null }>;
   handleSignUp: (params: {
     email: string;
     password: string;
@@ -120,6 +163,27 @@ interface AppContextType {
   handleEditProfileSave: (updated: Partial<UserProfile>) => void;
   handleRunPayroll: () => void;
   handleSelectEmployeeInDirectory: (emp: EmployeeRosterItem) => void;
+  refreshAll: () => Promise<void>;
+
+  handleCreateEmployee: (input: CreateEmployeeInput) => Promise<{ temporaryPassword: string; loginId: string | null } | { error: string }>;
+  handleChangePassword: (newPassword: string) => Promise<{ error: string | null }>;
+  handleUpdateCompensationVisibility: (employeeId: string, visible: boolean) => Promise<void>;
+  handleReviseSalary: (
+    employeeId: string,
+    patch: { basicSalary: number; workingDaysPerWeek: number; standardDailyHours: number; breakMinutes: number },
+    components: SalaryComponentInput[],
+  ) => Promise<void>;
+  handleUploadLeaveAttachment: (file: File) => Promise<string>;
+  handleUploadResume: (file: File) => Promise<void>;
+  handleGetResumeSignedUrl: (path: string) => Promise<string>;
+  handleRemoveResume: () => Promise<void>;
+  handleFetchCoverageWarning: (input: { employeeId: string; fromDate: string; toDate: string }) => Promise<CoverageWarning>;
+  handleSaveTeamCoverageConfig: (config: { department: string; minHeadcountRequired: number; appliesToLeaveTypes: LeaveTypeDb[] }) => Promise<void>;
+  handleUpdateCompanySettings: (patch: Partial<CompanySettingsUI>) => Promise<void>;
+  fetchAttendanceDayRoster: (date: string) => Promise<AttendanceDayRow[]>;
+  fetchAttendanceMonthSummaryFor: (employeeId: string, monthStart: string, monthEnd: string) => Promise<AttendanceMonthSummary>;
+  fetchAttendanceDayRowsFor: (employeeId: string, from: string, to: string) => Promise<AttendanceDayRow[]>;
+  fetchOrgChart: (asOf?: string) => Promise<OrgRewindResponse | null>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -143,12 +207,18 @@ function MockAppProvider({ children }: { children: ReactNode }) {
   const [payrollRecords] = useState<PayrollRecord[]>(INITIAL_PAYROLL_DATA);
   const [punches, setPunches] = useState<AttendancePunch[]>(INITIAL_PUNCHES);
   const [weeklyDays] = useState<DayAttendance[]>(INITIAL_WEEKLY_ATTENDANCE);
+  const [companySettings, setCompanySettings] = useState<CompanySettingsUI | null>({ name: 'Dayflow Technologies Inc.', logoUrl: null });
+  const [teamCoverageConfig, setTeamCoverageConfig] = useState<TeamCoverageConfig[]>([
+    { id: 'tcc-eng', department: 'Engineering', min_headcount_required: 3, applies_to_leave_types: ['paid', 'sick', 'unpaid'], created_at: new Date().toISOString() },
+    { id: 'tcc-sales', department: 'Sales', min_headcount_required: 2, applies_to_leave_types: ['paid', 'unpaid'], created_at: new Date().toISOString() },
+  ]);
 
   const [applyLeaveModalOpen, setApplyLeaveModalOpen] = useState(false);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [runPayrollModalOpen, setRunPayrollModalOpen] = useState(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [createEmployeeModalOpen, setCreateEmployeeModalOpen] = useState(false);
 
   const currentUser = currentUserId === 'usr-alex' ? alexUser : sarahUser;
 
@@ -271,6 +341,89 @@ function MockAppProvider({ children }: { children: ReactNode }) {
     setCurrentTab('profile');
   };
 
+  const refreshAll = async () => {};
+
+  const handleCreateEmployee = async (input: CreateEmployeeInput) => {
+    const loginId = `OI${input.fullName.replace(/\s+/g, '').slice(0, 4).toUpperCase()}${new Date().getFullYear()}0001`;
+    setCreateEmployeeModalOpen(false);
+    return { temporaryPassword: 'Demo1234!', loginId };
+  };
+
+  const handleChangePassword = async () => ({ error: null });
+
+  const handleUpdateCompensationVisibility = async (employeeId: string, visible: boolean) => {
+    const setUser = employeeId === alexUser.id ? setAlexUser : employeeId === sarahUser.id ? setSarahUser : null;
+    setUser?.((prev) => ({ ...prev, compensationVisibility: visible }));
+  };
+
+  const handleReviseSalary = async (
+    employeeId: string,
+    patch: { basicSalary: number; workingDaysPerWeek: number; standardDailyHours: number; breakMinutes: number },
+  ) => {
+    const setUser = employeeId === alexUser.id ? setAlexUser : employeeId === sarahUser.id ? setSarahUser : null;
+    setUser?.((prev) => ({
+      ...prev,
+      salary: { ...prev.salary, base: patch.basicSalary, workingDaysPerWeek: patch.workingDaysPerWeek, breakMinutes: patch.breakMinutes },
+    }));
+  };
+
+  const handleUploadLeaveAttachment = async (file: File) => `mock/${file.name}`;
+
+  const handleUploadResume = async (file: File) => {
+    handleEditProfileSave({ resumePath: `mock/${file.name}` });
+  };
+
+  const handleGetResumeSignedUrl = async (path: string) => path;
+
+  const handleRemoveResume = async () => {
+    handleEditProfileSave({ resumePath: null });
+  };
+
+  const handleFetchCoverageWarning = async (): Promise<CoverageWarning> => ({ safe: true, conflicts: [], suggestedDates: [] });
+
+  const handleSaveTeamCoverageConfig = async (config: { department: string; minHeadcountRequired: number; appliesToLeaveTypes: LeaveTypeDb[] }) => {
+    setTeamCoverageConfig((prev) => {
+      const next = prev.filter((c) => c.department !== config.department);
+      return [...next, { id: `tcc-${config.department}`, department: config.department, min_headcount_required: config.minHeadcountRequired, applies_to_leave_types: config.appliesToLeaveTypes, created_at: new Date().toISOString() }];
+    });
+  };
+
+  const handleUpdateCompanySettings = async (patch: Partial<CompanySettingsUI>) => {
+    setCompanySettings((prev) => (prev ? { ...prev, ...patch } : null));
+  };
+
+  const mockDayRoster = async (date: string): Promise<AttendanceDayRow[]> =>
+    employeeRoster.map((e) => ({
+      employeeId: e.id,
+      employeeName: e.name,
+      employeeAvatar: e.avatar,
+      date,
+      checkIn: e.attendanceStatus === 'present' ? '09:00' : null,
+      checkOut: e.attendanceStatus === 'present' ? '18:00' : null,
+      workHours: e.attendanceStatus === 'present' ? '09:00' : '00:00',
+      extraHours: '00:00',
+    }));
+
+  const mockMonthSummary = async (): Promise<AttendanceMonthSummary> => ({ daysPresent: 18, leavesCount: 2, totalWorkingDays: 22 });
+
+  const mockDayRowsForEmployee = async (employeeId: string, from: string): Promise<AttendanceDayRow[]> =>
+    weeklyDays.map((d, i) => ({
+      employeeId,
+      employeeName: currentUser.name,
+      date: `${from.slice(0, 7)}-${String(i + 1).padStart(2, '0')}`,
+      checkIn: d.statusType === 'normal' ? '09:00' : null,
+      checkOut: d.statusType === 'normal' ? '18:00' : null,
+      workHours: d.hours,
+      extraHours: '00:00',
+    }));
+
+  const myReportees: ReporteeEntry[] =
+    currentUser.role === 'employee'
+      ? []
+      : employeeRoster.slice(0, 2).map((e, depth) => ({ id: e.id, name: e.name, avatar: e.avatar ?? '', department: e.department, jobTitle: e.role, depth: depth + 1 }));
+
+  const fetchOrgChart = async (): Promise<OrgRewindResponse | null> => null;
+
   const value: AppContextType = {
     isAuthenticated: true,
     isLoading: false,
@@ -278,6 +431,7 @@ function MockAppProvider({ children }: { children: ReactNode }) {
     currentUserId,
     currentTab,
     setCurrentTab,
+    supabase: null,
     actionItems,
     recentActivities,
     pendingApprovals,
@@ -286,6 +440,9 @@ function MockAppProvider({ children }: { children: ReactNode }) {
     payrollRecords,
     punches,
     weeklyDays,
+    companySettings,
+    teamCoverageConfig,
+    myReportees,
     applyLeaveModalOpen,
     setApplyLeaveModalOpen,
     editProfileModalOpen,
@@ -296,6 +453,8 @@ function MockAppProvider({ children }: { children: ReactNode }) {
     setNotificationsModalOpen,
     helpModalOpen,
     setHelpModalOpen,
+    createEmployeeModalOpen,
+    setCreateEmployeeModalOpen,
     handleSwitchUser,
     handleSignIn,
     handleSignUp,
@@ -310,6 +469,22 @@ function MockAppProvider({ children }: { children: ReactNode }) {
     handleEditProfileSave,
     handleRunPayroll,
     handleSelectEmployeeInDirectory,
+    refreshAll,
+    handleCreateEmployee,
+    handleChangePassword,
+    handleUpdateCompensationVisibility,
+    handleReviseSalary,
+    handleUploadLeaveAttachment,
+    handleUploadResume,
+    handleGetResumeSignedUrl,
+    handleRemoveResume,
+    handleFetchCoverageWarning,
+    handleSaveTeamCoverageConfig,
+    handleUpdateCompanySettings,
+    fetchAttendanceDayRoster: mockDayRoster,
+    fetchAttendanceMonthSummaryFor: mockMonthSummary,
+    fetchAttendanceDayRowsFor: mockDayRowsForEmployee,
+    fetchOrgChart,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -335,12 +510,16 @@ function RealAppProvider({ children }: { children: ReactNode }) {
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [punches, setPunches] = useState<AttendancePunch[]>(() => buildPunches(null));
   const [weeklyDays, setWeeklyDays] = useState<DayAttendance[]>([]);
+  const [companySettings, setCompanySettings] = useState<CompanySettingsUI | null>(null);
+  const [teamCoverageConfig, setTeamCoverageConfig] = useState<TeamCoverageConfig[]>([]);
+  const [myReportees, setMyReportees] = useState<ReporteeEntry[]>([]);
 
   const [applyLeaveModalOpen, setApplyLeaveModalOpen] = useState(false);
   const [editProfileModalOpen, setEditProfileModalOpen] = useState(false);
   const [runPayrollModalOpen, setRunPayrollModalOpen] = useState(false);
   const [notificationsModalOpen, setNotificationsModalOpen] = useState(false);
   const [helpModalOpen, setHelpModalOpen] = useState(false);
+  const [createEmployeeModalOpen, setCreateEmployeeModalOpen] = useState(false);
 
   const refreshAll = useCallback(
     async (uid: string) => {
@@ -392,6 +571,15 @@ function RealAppProvider({ children }: { children: ReactNode }) {
         });
       }
       setActionItems(items);
+
+      const [settings, coverageConfig, reportees] = await Promise.all([
+        fetchCompanySettings(supabase).catch(() => null),
+        fetchTeamCoverageConfig(supabase).catch(() => []),
+        profile.role === 'employee' ? Promise.resolve([]) : fetchMyReportees().catch(() => []),
+      ]);
+      setCompanySettings(settings);
+      setTeamCoverageConfig(coverageConfig);
+      setMyReportees(reportees);
     },
     [supabase]
   );
@@ -445,7 +633,13 @@ function RealAppProvider({ children }: { children: ReactNode }) {
   );
 
   const handleSignIn = useCallback(
-    async (email: string, password: string) => {
+    async (identifier: string, password: string) => {
+      let email: string;
+      try {
+        email = await resolveSignInIdentifier(supabase, identifier);
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'No account found for that Login ID' };
+      }
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) return { error: error.message };
       if (data.user) {
@@ -507,6 +701,7 @@ function RealAppProvider({ children }: { children: ReactNode }) {
           startDate: newReq.startDate,
           endDate: newReq.endDate,
           notes: newReq.notes,
+          attachmentUrl: newReq.attachmentUrl ?? undefined,
         })
       )(),
     [withRefresh]
@@ -538,6 +733,123 @@ function RealAppProvider({ children }: { children: ReactNode }) {
     [authUser, router]
   );
 
+  const handleCreateEmployee = useCallback(
+    async (input: CreateEmployeeInput) => {
+      try {
+        const result = await createEmployee(input);
+        await refreshAll(authUser?.id ?? '');
+        setCreateEmployeeModalOpen(false);
+        return { temporaryPassword: result.temporaryPassword, loginId: result.employee.login_id };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Failed to create employee' };
+      }
+    },
+    [authUser, refreshAll]
+  );
+
+  const handleChangePassword = useCallback(
+    async (newPassword: string) => {
+      if (!authUser) return { error: 'Not signed in' };
+      try {
+        await changeOwnPassword(supabase, authUser.id, newPassword);
+        await refreshAll(authUser.id);
+        return { error: null };
+      } catch (err) {
+        return { error: err instanceof Error ? err.message : 'Failed to change password' };
+      }
+    },
+    [authUser, supabase, refreshAll]
+  );
+
+  const handleUpdateCompensationVisibility = useCallback(
+    async (employeeId: string, visible: boolean) => {
+      await updateCompensationVisibility(supabase, employeeId, visible);
+      if (authUser) await refreshAll(authUser.id);
+    },
+    [supabase, authUser, refreshAll]
+  );
+
+  const handleReviseSalary = useCallback(
+    async (
+      employeeId: string,
+      patch: { basicSalary: number; workingDaysPerWeek: number; standardDailyHours: number; breakMinutes: number },
+      components: SalaryComponentInput[],
+    ) => {
+      await reviseSalary(supabase, employeeId, patch, components);
+      if (authUser) await refreshAll(authUser.id);
+    },
+    [supabase, authUser, refreshAll]
+  );
+
+  const handleUploadLeaveAttachment = useCallback(
+    async (file: File) => {
+      if (!authUser) throw new Error('Not signed in');
+      return uploadLeaveAttachment(supabase, authUser.id, file);
+    },
+    [supabase, authUser]
+  );
+
+  const handleUploadResume = useCallback(
+    async (file: File) => {
+      if (!authUser) throw new Error('Not signed in');
+      const path = await uploadResumeFile(supabase, authUser.id, file);
+      await updateEmployeeProfile(supabase, authUser.id, { resumePath: path });
+      await refreshAll(authUser.id);
+    },
+    [supabase, authUser, refreshAll]
+  );
+
+  const handleGetResumeSignedUrl = useCallback(
+    (path: string) => getResumeSignedUrl(supabase, path),
+    [supabase]
+  );
+
+  const handleRemoveResume = useCallback(
+    async () => {
+      if (!authUser) throw new Error('Not signed in');
+      if (currentUser.resumePath) await removeResumeFile(supabase, currentUser.resumePath);
+      await updateEmployeeProfile(supabase, authUser.id, { resumePath: null });
+      await refreshAll(authUser.id);
+    },
+    [supabase, authUser, currentUser.resumePath, refreshAll]
+  );
+
+  const handleFetchCoverageWarning = useCallback(
+    (input: { employeeId: string; fromDate: string; toDate: string }) => fetchCoverageWarning(input),
+    []
+  );
+
+  const handleSaveTeamCoverageConfig = useCallback(
+    async (config: { department: string; minHeadcountRequired: number; appliesToLeaveTypes: LeaveTypeDb[] }) => {
+      await saveTeamCoverageConfig(supabase, config);
+      setTeamCoverageConfig(await fetchTeamCoverageConfig(supabase));
+    },
+    [supabase]
+  );
+
+  const handleUpdateCompanySettings = useCallback(
+    async (patch: Partial<CompanySettingsUI>) => {
+      await updateCompanySettings(supabase, patch);
+      setCompanySettings(await fetchCompanySettings(supabase));
+    },
+    [supabase]
+  );
+
+  const fetchAttendanceDayRosterCb = useCallback((date: string) => fetchAttendanceDayRoster(supabase, date), [supabase]);
+  const fetchAttendanceMonthSummaryFor = useCallback(
+    (employeeId: string, monthStart: string, monthEnd: string) => fetchAttendanceMonthSummary(supabase, employeeId, monthStart, monthEnd),
+    [supabase]
+  );
+  const fetchAttendanceDayRowsFor = useCallback(
+    (employeeId: string, from: string, to: string) => fetchAttendanceDayRowsForEmployee(supabase, employeeId, from, to),
+    [supabase]
+  );
+  const fetchOrgChart = useCallback((asOf?: string) => fetchOrgRewind(asOf).catch(() => null), []);
+
+  const boundRefreshAll = useCallback(async () => {
+    if (authUser) await refreshAll(authUser.id);
+  }, [authUser, refreshAll]);
+
   const value: AppContextType = {
     isAuthenticated: !!authUser,
     isLoading,
@@ -545,6 +857,7 @@ function RealAppProvider({ children }: { children: ReactNode }) {
     currentUserId: currentUser.id,
     currentTab,
     setCurrentTab,
+    supabase,
     actionItems,
     recentActivities,
     pendingApprovals,
@@ -553,6 +866,9 @@ function RealAppProvider({ children }: { children: ReactNode }) {
     payrollRecords,
     punches,
     weeklyDays,
+    companySettings,
+    teamCoverageConfig,
+    myReportees,
     applyLeaveModalOpen,
     setApplyLeaveModalOpen,
     editProfileModalOpen,
@@ -563,6 +879,8 @@ function RealAppProvider({ children }: { children: ReactNode }) {
     setNotificationsModalOpen,
     helpModalOpen,
     setHelpModalOpen,
+    createEmployeeModalOpen,
+    setCreateEmployeeModalOpen,
     handleSwitchUser: handleSignOut,
     handleSignIn,
     handleSignUp,
@@ -577,6 +895,22 @@ function RealAppProvider({ children }: { children: ReactNode }) {
     handleEditProfileSave,
     handleRunPayroll,
     handleSelectEmployeeInDirectory,
+    refreshAll: boundRefreshAll,
+    handleCreateEmployee,
+    handleChangePassword,
+    handleUpdateCompensationVisibility,
+    handleReviseSalary,
+    handleUploadLeaveAttachment,
+    handleUploadResume,
+    handleGetResumeSignedUrl,
+    handleRemoveResume,
+    handleFetchCoverageWarning,
+    handleSaveTeamCoverageConfig,
+    handleUpdateCompanySettings,
+    fetchAttendanceDayRoster: fetchAttendanceDayRosterCb,
+    fetchAttendanceMonthSummaryFor,
+    fetchAttendanceDayRowsFor,
+    fetchOrgChart,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

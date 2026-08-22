@@ -88,8 +88,17 @@ export async function GET(
     );
   }
 
-  // ── 6. Compute and return payslip ───────────────────────────────────────────
-  const breakdown = computePayslip(salaryRecord, targetEmployeeId, month);
+  // ── 6. Fetch salary components for this record, then compute payslip ───────
+  const { data: componentsData, error: componentsError } = await supabaseAdmin
+    .from('salary_components')
+    .select('*')
+    .eq('salary_record_id', salaryRecord.id);
+
+  if (componentsError) {
+    return NextResponse.json({ data: null, error: 'Failed to load salary components' }, { status: 500 });
+  }
+
+  const breakdown = computePayslip(salaryRecord, componentsData ?? [], targetEmployeeId, month);
 
   if (access === 'allow_partial') {
     return NextResponse.json(

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { UserProfile, LeaveType, LeaveRequest } from '@/types';
+import { useAppContext } from '@/context/AppContext';
 
 function addDays(n: number): string {
   const d = new Date();
@@ -20,12 +21,20 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
   currentUser,
   onSubmit,
 }) => {
+  const { handleUploadLeaveAttachment } = useAppContext();
+
   const [leaveType, setLeaveType] = useState<LeaveType>('Paid Leave');
   const [startDate, setStartDate] = useState(() => addDays(1));
   const [endDate, setEndDate] = useState(() => addDays(3));
   const [notes, setNotes] = useState('');
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const requiresAttachment = leaveType === 'Sick Leave';
 
   const calculateDays = () => {
     try {
@@ -41,8 +50,49 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
 
   const daysCount = calculateDays();
 
+  const resetForm = () => {
+    setLeaveType('Paid Leave');
+    setStartDate(addDays(1));
+    setEndDate(addDays(3));
+    setNotes('');
+    setAttachmentUrl(null);
+    setAttachmentName(null);
+    setUploading(false);
+    setFormError(null);
+  };
+
+  const handleClose = () => {
+    resetForm();
+    onClose();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+
+    setUploading(true);
+    setFormError(null);
+    try {
+      const path = await handleUploadLeaveAttachment(file);
+      setAttachmentUrl(path);
+      setAttachmentName(file.name);
+    } catch (err) {
+      setAttachmentUrl(null);
+      setAttachmentName(null);
+      setFormError(err instanceof Error ? err.message : 'Failed to upload the attachment. Please try again.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (requiresAttachment && !attachmentUrl) {
+      setFormError('Please attach a medical certificate before submitting a sick leave request.');
+      return;
+    }
 
     onSubmit({
       employeeName: currentUser.name,
@@ -56,8 +106,10 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
       status: 'Pending Review',
       notes,
       appliedDate: 'Just now',
+      attachmentUrl: attachmentUrl ?? undefined,
     });
 
+    resetForm();
     onClose();
   };
 
@@ -66,7 +118,7 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
       {/* Backdrop */}
       <div
         className="fixed inset-0 bg-black/40 backdrop-blur-sm transition-opacity"
-        onClick={onClose}
+        onClick={handleClose}
       />
 
       {/* Modal Card */}
@@ -84,7 +136,7 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
             </div>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1 rounded-full text-[#424844] hover:bg-[#eeeeeb] transition-colors"
           >
             <span className="material-symbols-outlined text-[20px]">close</span>
@@ -92,6 +144,20 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
         </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+          {/* Employee (read-only, self) */}
+          <div className="flex items-center gap-3 p-3 bg-[#faf9f7] rounded-2xl border border-[#eeeeeb]">
+            <img
+              src={currentUser.avatar}
+              alt={currentUser.name}
+              className="w-9 h-9 rounded-full object-cover border border-[#c1c8c3]/40 shrink-0"
+              referrerPolicy="no-referrer"
+            />
+            <div className="flex flex-col min-w-0">
+              <span className="text-[10px] font-semibold text-[#625e52] uppercase tracking-wider">Employee</span>
+              <span className="text-sm font-semibold text-[#1a1c1b] truncate">{currentUser.name}</span>
+            </div>
+          </div>
+
           <div>
             <label className="text-xs font-semibold text-[#1a1c1b] uppercase tracking-wider block mb-1.5">
               Leave Category
@@ -136,11 +202,47 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
           </div>
 
           <div className="p-3 bg-[#faf9f7] rounded-2xl flex items-center justify-between border border-[#eeeeeb]">
-            <span className="text-xs font-medium text-[#424844]">Total Requested Days:</span>
+            <span className="text-xs font-medium text-[#424844]">Allocation Days:</span>
             <span className="text-sm font-bold text-[#5b7a6b]">
               {daysCount} {daysCount === 1 ? 'Working Day' : 'Working Days'}
             </span>
           </div>
+
+          {requiresAttachment && (
+            <div>
+              <label className="text-xs font-semibold text-[#1a1c1b] uppercase tracking-wider block mb-1.5">
+                Medical Certificate <span className="text-[#ba1a1a]">*</span>
+              </label>
+              <label
+                className={`flex items-center gap-3 w-full rounded-2xl border border-dashed px-4 py-3 text-sm cursor-pointer transition-colors ${
+                  attachmentUrl
+                    ? 'border-[#5b7a6b] bg-[#eef5f0] text-[#436153]'
+                    : 'border-[#c1c8c3] bg-[#f4f4f1] text-[#625e52] hover:bg-[#eeeeeb]'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[20px]">
+                  {attachmentUrl ? 'task_alt' : 'upload_file'}
+                </span>
+                <span className="truncate">
+                  {uploading
+                    ? 'Uploading…'
+                    : attachmentName
+                    ? attachmentName
+                    : 'Upload a certificate (PDF, JPG, PNG)'}
+                </span>
+                <input
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png"
+                  className="hidden"
+                  onChange={handleFileChange}
+                  disabled={uploading}
+                />
+              </label>
+              <p className="text-[10px] text-[#727974] mt-1.5">
+                Required for sick leave requests — attach a doctor&apos;s note or medical certificate.
+              </p>
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-semibold text-[#1a1c1b] uppercase tracking-wider block mb-1.5">
@@ -155,19 +257,26 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
             />
           </div>
 
+          {formError && (
+            <p className="text-xs font-medium text-[#ba1a1a] bg-[#fdecec] border border-[#f3c6c6] rounded-2xl px-3 py-2">
+              {formError}
+            </p>
+          )}
+
           <div className="flex gap-3 pt-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="flex-1 py-3 rounded-full border border-[#c1c8c3] text-xs font-semibold text-[#1a1c1b] hover:bg-[#eeeeeb] transition-all cursor-pointer"
             >
-              Cancel
+              Discard
             </button>
             <button
               type="submit"
-              className="flex-1 py-3 rounded-full bg-[#5b7a6b] hover:bg-[#436153] text-white text-xs font-semibold transition-all shadow-sm cursor-pointer active:scale-95"
+              disabled={uploading}
+              className="flex-1 py-3 rounded-full bg-[#5b7a6b] hover:bg-[#436153] text-white text-xs font-semibold transition-all shadow-sm cursor-pointer active:scale-95 disabled:opacity-60 disabled:cursor-wait"
             >
-              Submit Application
+              {uploading ? 'Uploading…' : 'Submit Application'}
             </button>
           </div>
         </form>

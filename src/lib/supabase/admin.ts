@@ -24,17 +24,7 @@
 
 import 'server-only';
 import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl    = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-
-// Validate at module load time to fail fast in misconfigured environments.
-if (!supabaseUrl || !serviceRoleKey) {
-  throw new Error(
-    '[supabaseAdmin] Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY. ' +
-    'Check your .env.local file.'
-  );
-}
+import { env } from '@/env';
 
 /**
  * Service-role client — RLS bypassed. Use ONLY in app/api/* route handlers,
@@ -43,7 +33,7 @@ if (!supabaseUrl || !serviceRoleKey) {
  * For Server Components / RSC data fetching, use the anon-key server client
  * from lib/supabase/server.ts instead (which is RLS-bound).
  */
-export const supabaseAdmin = createClient(supabaseUrl, serviceRoleKey, {
+export const supabaseAdmin = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
   auth: {
     autoRefreshToken:   false,
     persistSession:     false,

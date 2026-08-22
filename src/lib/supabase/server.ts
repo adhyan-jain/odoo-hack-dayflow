@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies, headers } from "next/headers";
 import type { Database } from "@/types/database.types";
+import { env } from "@/env";
 
 export async function createClient() {
   const headerList = await headers();
@@ -9,8 +10,8 @@ export async function createClient() {
   if (authHeader && authHeader.startsWith("Bearer ")) {
     const token = authHeader.substring(7);
     return createServerClient<Database>(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      env.NEXT_PUBLIC_SUPABASE_URL,
+      env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
       {
         global: {
           headers: {
@@ -30,8 +31,8 @@ export async function createClient() {
   const cookieStore = await cookies();
 
   return createServerClient<Database>(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {

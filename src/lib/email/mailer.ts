@@ -21,6 +21,7 @@
 
 import 'server-only';
 import nodemailer, { type Transporter } from 'nodemailer';
+import { env } from '@/env';
 
 export interface EmailRecipient {
   email: string;
@@ -50,8 +51,8 @@ function getTransporter(user: string, pass: string): Transporter {
 const fmtRecipient = (r: EmailRecipient) => (r.name ? `"${r.name}" <${r.email}>` : r.email);
 
 export async function sendEmail(input: SendEmailInput): Promise<void> {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
+  const user = env.GMAIL_USER;
+  const pass = env.GMAIL_APP_PASSWORD;
   const to = Array.isArray(input.to) ? input.to : [input.to];
 
   if (!user || !pass) {
@@ -62,7 +63,7 @@ export async function sendEmail(input: SendEmailInput): Promise<void> {
     return;
   }
 
-  const senderName = process.env.GMAIL_SENDER_NAME || 'Dayflow';
+  const senderName = env.GMAIL_SENDER_NAME;
   const transporter = getTransporter(user, pass);
 
   await transporter.sendMail({

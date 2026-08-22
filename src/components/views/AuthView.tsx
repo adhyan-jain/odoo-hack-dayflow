@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation';
 import { useAppContext } from '@/context/AppContext';
 import { bootstrapCompany, companyExists } from '@/lib/supabase/hrms';
 import { createClient } from '@/lib/supabase/client';
+import { env } from '@/env';
 
-const BYPASS_AUTH = process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
+const BYPASS_AUTH = env.NEXT_PUBLIC_BYPASS_AUTH;
 
 interface AuthViewProps {
   mode: 'sign-in' | 'sign-up';

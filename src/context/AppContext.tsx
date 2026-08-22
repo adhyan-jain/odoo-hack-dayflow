@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
+import { env } from '@/env';
 import {
   UserProfile,
   LeaveRequest,
@@ -84,7 +85,7 @@ import {
 // Demo/showcase mode: skips real Supabase auth entirely (see proxy.ts / middleware.ts,
 // which honor the same flag). Flip to `false` once the schema in supabase/migrations
 // has been applied to the linked project.
-const BYPASS_AUTH = process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
+const BYPASS_AUTH = env.NEXT_PUBLIC_BYPASS_AUTH;
 
 const EMPTY_PROFILE: UserProfile = {
   id: '',

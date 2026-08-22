@@ -1,12 +1,13 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { env } from "@/env";
 
 const PUBLIC_PATHS = ["/sign-in", "/sign-up", "/auth/callback", "/api/auth/bootstrap-company"];
 
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  if (process.env.NEXT_PUBLIC_BYPASS_AUTH === "true") {
+  if (env.NEXT_PUBLIC_BYPASS_AUTH) {
     return response;
   }
 
@@ -14,8 +15,8 @@ export async function updateSession(request: NextRequest) {
   const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.slice(7) : null;
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    env.NEXT_PUBLIC_SUPABASE_URL,
+    env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     bearerToken
       ? {
           global: { headers: { Authorization: `Bearer ${bearerToken}` } },

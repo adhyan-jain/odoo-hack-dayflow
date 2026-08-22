@@ -5,8 +5,9 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { UserProfile, CompanySettingsUI } from '@/types';
 import { NavTabId } from './SideNavBar';
+import { env } from '@/env';
 
-const BYPASS_AUTH = process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
+const BYPASS_AUTH = env.NEXT_PUBLIC_BYPASS_AUTH;
 
 interface TopNavBarProps {
   currentUser: UserProfile;

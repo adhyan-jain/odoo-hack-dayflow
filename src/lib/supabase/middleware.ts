@@ -40,6 +40,9 @@ export async function updateSession(request: NextRequest) {
   );
 
   if (!user && !isPublicPath) {
+    if (request.nextUrl.pathname.startsWith('/api/')) {
+      return NextResponse.json({ data: null, error: 'Unauthorized' }, { status: 401 });
+    }
     const url = request.nextUrl.clone();
     url.pathname = "/sign-in";
     return NextResponse.redirect(url);

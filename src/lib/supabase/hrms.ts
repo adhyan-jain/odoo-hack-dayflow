@@ -1,19 +1,29 @@
 /**
- * Data access layer bridging Supabase (snake_case DB rows, RLS-scoped) and the
- * frontend's domain types (src/types/index.ts). All access control is enforced
- * by Postgres RLS (see supabase/migrations) — these helpers never branch on
- * role to decide *what* a query returns, only how to shape it.
+ * Data access layer bridging the real Dayflow backend (see API_CONTRACT.md) and
+ * the frontend's domain types (src/types/index.ts).
+ *
+ * Two access patterns, per API_CONTRACT.md's "Direct Supabase Table Access" table:
+ *  - employees / attendance / leave_requests / leave_balances / team_coverage_config
+ *    are queried directly via supabase-js; Postgres RLS scopes what comes back
+ *    (self, or everything for admin/hr) — this file never branches on role to
+ *    decide *what* a query returns.
+ *  - salary_records (computed payslip), leave approval, and org-graph reads go
+ *    through the /api/* routes, because they need server-side business logic
+ *    (statutory deductions, coverage checks, graph traversal) that RLS can't
+ *    express.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type {
-  Database,
-  UserRole as DbUserRole,
+  Employee,
+  Attendance as DbAttendance,
+  LeaveRequest as DbLeaveRequest,
+  LeaveBalance,
   LeaveType as DbLeaveType,
   LeaveStatus as DbLeaveStatus,
-} from "@/types/database.types";
+  PayslipBreakdown,
+} from "@/lib/types";
 import type {
   UserProfile,
-  UserRole,
   LeaveRequest,
   LeaveType,
   LeaveStatus,
@@ -25,38 +35,28 @@ import type {
   PayrollRecord,
 } from "@/types";
 
-export type Client = SupabaseClient<Database>;
-type EmployeeRow = Database["public"]["Tables"]["employees"]["Row"];
-type AttendanceRow = Database["public"]["Tables"]["attendance"]["Row"];
-type LeaveRow = Database["public"]["Tables"]["leave_requests"]["Row"];
-type PayrollRow = Database["public"]["Tables"]["payroll"]["Row"];
-type DirectoryRow = Database["public"]["Views"]["employee_directory"]["Row"];
+// No `<Database>` generic — see lib/supabase/client.ts for why. Query results
+// are cast to the domain types below (matching lib/supabase/admin.ts's pattern).
+export type Client = SupabaseClient;
 
 // ---------------------------------------------------------------------------
-// Enum mapping — DB uses 'employee'|'hr' and a 3-way leave_type; the UI uses
-// 'employee'|'admin' and four named leave categories.
+// Enum mapping — DB has 3 leave types / 4 statuses; the UI mirrors them 1:1.
 // ---------------------------------------------------------------------------
-export const roleToFe = (r: DbUserRole): UserRole => (r === "hr" ? "admin" : "employee");
-export const roleToDb = (r: UserRole): DbUserRole => (r === "admin" ? "hr" : "employee");
-
 const LEAVE_TYPE_TO_DB: Record<LeaveType, DbLeaveType> = {
-  "Annual Leave": "annual",
+  "Paid Leave": "paid",
   "Sick Leave": "sick",
-  "Personal Leave": "personal",
-  "Maternity/Paternity": "maternity_paternity",
+  "Unpaid Leave": "unpaid",
 };
 const LEAVE_TYPE_FROM_DB: Record<DbLeaveType, LeaveType> = {
-  annual: "Annual Leave",
+  paid: "Paid Leave",
   sick: "Sick Leave",
-  personal: "Personal Leave",
-  maternity_paternity: "Maternity/Paternity",
-  paid: "Annual Leave",
-  unpaid: "Personal Leave",
+  unpaid: "Unpaid Leave",
 };
 const LEAVE_STATUS_FROM_DB: Record<DbLeaveStatus, LeaveStatus> = {
   pending: "Pending Review",
   approved: "Approved",
   rejected: "Rejected",
+  escalated: "Escalated",
 };
 
 // ---------------------------------------------------------------------------
@@ -85,93 +85,87 @@ function avatarFor(name: string, url: string | null): string {
 }
 
 // ---------------------------------------------------------------------------
-// Raw fetchers — RLS scopes the rows returned; no role branching needed here.
+// /api/* helper — every route returns { data, error } (API_CONTRACT.md).
 // ---------------------------------------------------------------------------
-export async function fetchMyEmployeeRow(supabase: Client, userId: string): Promise<EmployeeRow> {
+async function apiCall<T>(path: string, options?: RequestInit): Promise<T> {
+  const res = await fetch(path, {
+    ...options,
+    headers: { "Content-Type": "application/json", ...(options?.headers ?? {}) },
+  });
+  const json = (await res.json()) as { data: T | null; error: string | null };
+  if (!res.ok || json.error) {
+    throw new Error(json.error ?? `Request failed (${res.status})`);
+  }
+  return json.data as T;
+}
+
+// ---------------------------------------------------------------------------
+// Raw fetchers — RLS scopes the rows returned.
+// ---------------------------------------------------------------------------
+export async function fetchMyEmployeeRow(supabase: Client, userId: string): Promise<Employee> {
   const { data, error } = await supabase.from("employees").select("*").eq("id", userId).single();
   if (error) throw error;
   return data;
 }
 
-export async function fetchDirectory(supabase: Client): Promise<DirectoryRow[]> {
-  const { data, error } = await supabase.from("employee_directory").select("*").order("full_name");
-  if (error) throw error;
-  return data ?? [];
-}
-
-/** Full employee rows (salary, phone, etc). RLS: HR gets everyone, an employee gets only self. */
-export async function fetchEmployeesFull(supabase: Client): Promise<EmployeeRow[]> {
+/** RLS: admin/hr get every employee; a regular employee gets only their own row. */
+export async function fetchEmployeesFull(supabase: Client): Promise<Employee[]> {
   const { data, error } = await supabase.from("employees").select("*").order("full_name");
   if (error) throw error;
   return data ?? [];
 }
 
-export async function fetchLeaveRequests(supabase: Client): Promise<LeaveRow[]> {
+export async function fetchLeaveRequests(supabase: Client): Promise<DbLeaveRequest[]> {
   const { data, error } = await supabase.from("leave_requests").select("*").order("created_at", { ascending: false });
   if (error) throw error;
   return data ?? [];
 }
 
-export async function fetchPayroll(supabase: Client): Promise<PayrollRow[]> {
-  const { data, error } = await supabase.from("payroll").select("*").order("created_at", { ascending: false });
+export async function fetchAttendanceRange(supabase: Client, employeeId: string, from: string, to: string): Promise<DbAttendance[]> {
+  const { data, error } = await supabase.from("attendance").select("*").eq("employee_id", employeeId).gte("date", from).lte("date", to);
   if (error) throw error;
   return data ?? [];
 }
 
-export async function fetchAttendanceRange(supabase: Client, employeeId: string, from: string, to: string): Promise<AttendanceRow[]> {
-  const { data, error } = await supabase
-    .from("attendance")
-    .select("*")
-    .eq("employee_id", employeeId)
-    .gte("date", from)
-    .lte("date", to);
-  if (error) throw error;
-  return data ?? [];
-}
-
-/** Today's attendance for every employee visible to the caller (RLS-scoped) — used for the HR "present today" stat. */
-export async function fetchAttendanceToday(supabase: Client): Promise<AttendanceRow[]> {
+/** Today's attendance for every employee visible to the caller (RLS-scoped) — HR "present today" stat. */
+export async function fetchAttendanceToday(supabase: Client): Promise<DbAttendance[]> {
   const { data, error } = await supabase.from("attendance").select("*").eq("date", todayStr());
   if (error) throw error;
   return data ?? [];
 }
 
+/** Current (non-superseded) balance rows for one employee, across all leave types. */
+export async function fetchLeaveBalances(supabase: Client, employeeId: string): Promise<LeaveBalance[]> {
+  const { data, error } = await supabase
+    .from("leave_balances")
+    .select("*")
+    .eq("employee_id", employeeId)
+    .is("valid_to", null)
+    .is("superseded_at", null);
+  if (error) throw error;
+  return data ?? [];
+}
+
+/** The employee's current direct manager, if the caller is allowed to read that manager's row (self/admin/hr — RLS). */
+export async function fetchMyManager(supabase: Client, employeeId: string): Promise<Employee | null> {
+  const today = todayStr();
+  const { data: edge } = await supabase
+    .from("reporting_edges")
+    .select("manager_id")
+    .eq("employee_id", employeeId)
+    .is("superseded_at", null)
+    .lte("valid_from", today)
+    .or(`valid_to.is.null,valid_to.gt.${today}`)
+    .maybeSingle();
+  if (!edge?.manager_id) return null;
+
+  const { data: manager } = await supabase.from("employees").select("*").eq("id", edge.manager_id).maybeSingle();
+  return manager ?? null; // null both when unset and when RLS hides the manager's row (not self/admin/hr)
+}
+
 // ---------------------------------------------------------------------------
 // Employee -> UserProfile
 // ---------------------------------------------------------------------------
-export async function mapEmployeeToProfile(supabase: Client, emp: EmployeeRow): Promise<UserProfile> {
-  const [managerRes, rate] = await Promise.all([
-    emp.manager_id
-      ? supabase.from("employee_directory").select("full_name, job_title, profile_picture_url").eq("id", emp.manager_id).maybeSingle()
-      : Promise.resolve({ data: null as { full_name: string; job_title: string | null; profile_picture_url: string | null } | null }),
-    computeAttendanceRate(supabase, emp.id),
-  ]);
-  const manager = managerRes.data;
-
-  return {
-    id: emp.id,
-    name: emp.full_name,
-    role: roleToFe(emp.role),
-    title: emp.job_title ?? "—",
-    department: emp.department ?? "—",
-    employeeId: emp.employee_code,
-    email: emp.email,
-    phone: emp.phone ?? "",
-    address: emp.address ?? "",
-    birthDate: fmtDate(emp.date_of_birth),
-    joinDate: fmtDate(emp.date_of_joining),
-    tenure: tenureOf(emp.date_of_joining),
-    employmentType: emp.employment_type,
-    manager: manager
-      ? { name: manager.full_name, title: manager.job_title ?? "", avatar: avatarFor(manager.full_name, manager.profile_picture_url) }
-      : { name: "Unassigned", title: "—", avatar: "" },
-    salary: { base: emp.base_salary ?? 0, bonusPercent: emp.bonus_percent, equity: emp.equity_units },
-    avatar: avatarFor(emp.full_name, emp.profile_picture_url),
-    leaveBalanceDays: emp.leave_balance_days,
-    attendanceRate: rate,
-  };
-}
-
 export async function computeAttendanceRate(supabase: Client, employeeId: string): Promise<number> {
   const since = new Date();
   since.setDate(since.getDate() - 30);
@@ -185,35 +179,73 @@ export async function computeAttendanceRate(supabase: Client, employeeId: string
   return Math.round((present / data.length) * 100);
 }
 
-// ---------------------------------------------------------------------------
-// Directory / roster
-// ---------------------------------------------------------------------------
-export function mapDirectoryRow(row: DirectoryRow, onLeaveIds: Set<string>): EmployeeRosterItem {
+export async function mapEmployeeToProfile(supabase: Client, emp: Employee): Promise<UserProfile> {
+  const [manager, balances, rate, salaryRes] = await Promise.all([
+    fetchMyManager(supabase, emp.id),
+    fetchLeaveBalances(supabase, emp.id),
+    computeAttendanceRate(supabase, emp.id),
+    // Raw salary_records read (RLS-permitted for self/admin/hr). Only the current
+    // basic/hra/special_allowance figures — the statutory payslip breakdown goes
+    // through /api/payroll/slip (see fetchPayslip below), never computed here.
+    supabase
+      .from("salary_records")
+      .select("basic_salary, hra, special_allowance")
+      .eq("employee_id", emp.id)
+      .is("valid_to", null)
+      .is("superseded_at", null)
+      .maybeSingle(),
+  ]);
+  const salary = salaryRes.data;
+
   return {
-    id: row.id,
-    name: row.full_name,
-    employeeCode: row.employee_code,
-    department: row.department ?? "—",
-    status: onLeaveIds.has(row.id) ? "On Leave" : "Active",
-    avatar: avatarFor(row.full_name, row.profile_picture_url),
-    email: row.email,
-    role: row.job_title ?? "—",
+    id: emp.id,
+    name: emp.full_name,
+    role: emp.role,
+    title: emp.job_title ?? "—",
+    department: emp.department ?? "—",
+    employeeId: emp.employee_code,
+    email: emp.email,
+    phone: emp.phone ?? "",
+    address: emp.address ?? "",
+    joinDate: fmtDate(emp.date_of_joining),
+    tenure: tenureOf(emp.date_of_joining),
+    manager: manager
+      ? { name: manager.full_name, title: manager.job_title ?? "—", avatar: avatarFor(manager.full_name, manager.profile_picture_url) }
+      : { name: "—", title: "—", avatar: "" },
+    salary: { base: salary?.basic_salary ?? 0, hra: salary?.hra ?? 0, specialAllowance: salary?.special_allowance ?? 0 },
+    avatar: avatarFor(emp.full_name, emp.profile_picture_url),
+    leaveBalanceDays: balances.reduce((sum, b) => sum + Number(b.balance_days), 0),
+    attendanceRate: rate,
   };
 }
 
+// ---------------------------------------------------------------------------
+// Directory / roster — same RLS-scoped employees read powers both the HR
+// roster panel and the company directory (a plain employee simply sees only
+// their own row back, by design; see RLS migration 008).
+// ---------------------------------------------------------------------------
 export async function loadEmployeeRoster(supabase: Client): Promise<EmployeeRosterItem[]> {
-  const [rows, leaveRows] = await Promise.all([fetchDirectory(supabase), fetchLeaveRequests(supabase)]);
+  const [employees, leaveRows] = await Promise.all([fetchEmployeesFull(supabase), fetchLeaveRequests(supabase)]);
   const today = todayStr();
   const onLeaveIds = new Set(
     leaveRows.filter((l) => l.status === "approved" && l.start_date <= today && l.end_date >= today).map((l) => l.employee_id)
   );
-  return rows.map((r) => mapDirectoryRow(r, onLeaveIds));
+  return employees.map((e) => ({
+    id: e.id,
+    name: e.full_name,
+    employeeCode: e.employee_code,
+    department: e.department ?? "—",
+    status: onLeaveIds.has(e.id) ? "On Leave" : "Active",
+    avatar: avatarFor(e.full_name, e.profile_picture_url),
+    email: e.email,
+    role: e.job_title ?? "—",
+  }));
 }
 
 // ---------------------------------------------------------------------------
 // Leave requests
 // ---------------------------------------------------------------------------
-export function mapLeaveRow(row: LeaveRow, employee: { name: string; department: string; avatar: string; employeeCode: string }): LeaveRequest {
+export function mapLeaveRow(row: DbLeaveRequest, employee: { name: string; department: string; avatar: string; employeeCode: string }): LeaveRequest {
   const days = Math.round((new Date(row.end_date).getTime() - new Date(row.start_date).getTime()) / 86_400_000) + 1;
   return {
     id: row.id,
@@ -232,8 +264,8 @@ export function mapLeaveRow(row: LeaveRow, employee: { name: string; department:
 }
 
 export async function loadLeaveRequests(supabase: Client, self: UserProfile): Promise<LeaveRequest[]> {
-  const [rows, directory] = await Promise.all([fetchLeaveRequests(supabase), fetchDirectory(supabase)]);
-  const byId = new Map(directory.map((d) => [d.id, d]));
+  const [rows, employees] = await Promise.all([fetchLeaveRequests(supabase), fetchEmployeesFull(supabase)]);
+  const byId = new Map(employees.map((e) => [e.id, e]));
   return rows.map((row) => {
     const emp = byId.get(row.employee_id);
     return mapLeaveRow(row, {
@@ -245,8 +277,8 @@ export async function loadLeaveRequests(supabase: Client, self: UserProfile): Pr
   });
 }
 
-export function mapPendingApprovals(rows: LeaveRow[], directory: DirectoryRow[]): PendingApproval[] {
-  const byId = new Map(directory.map((d) => [d.id, d]));
+export function mapPendingApprovals(rows: DbLeaveRequest[], employees: Employee[]): PendingApproval[] {
+  const byId = new Map(employees.map((e) => [e.id, e]));
   return rows
     .filter((r) => r.status === "pending")
     .map((r) => {
@@ -264,37 +296,36 @@ export function mapPendingApprovals(rows: LeaveRow[], directory: DirectoryRow[])
     });
 }
 
-export async function createLeaveRequest(
-  supabase: Client,
-  employeeId: string,
-  req: { leaveType: LeaveType; startDate: string; endDate: string; notes?: string }
-): Promise<void> {
-  const { error } = await supabase.from("leave_requests").insert({
-    employee_id: employeeId,
-    leave_type: LEAVE_TYPE_TO_DB[req.leaveType],
-    start_date: req.startDate,
-    end_date: req.endDate,
-    remarks: req.notes || null,
+/** POST /api/leave/apply — resolves the approver server-side; do not insert leave_requests directly. */
+export async function createLeaveRequest(req: { leaveType: LeaveType; startDate: string; endDate: string; notes?: string }): Promise<void> {
+  await apiCall("/api/leave/apply", {
+    method: "POST",
+    body: JSON.stringify({
+      leave_type: LEAVE_TYPE_TO_DB[req.leaveType],
+      from_date: req.startDate,
+      to_date: req.endDate,
+      remarks: req.notes || undefined,
+    }),
   });
-  if (error) throw error;
 }
 
-export async function reviewLeaveRequest(supabase: Client, id: string, reviewerId: string, approve: boolean): Promise<void> {
-  const { error } = await supabase
-    .from("leave_requests")
-    .update({ status: approve ? "approved" : "rejected", reviewed_by: reviewerId })
-    .eq("id", id);
-  if (error) throw error;
+/** POST /api/leave/action — the coverage check + manager-graph permission gate only exist server-side. */
+export async function reviewLeaveRequest(id: string, approve: boolean): Promise<void> {
+  await apiCall("/api/leave/action", {
+    method: "POST",
+    body: JSON.stringify({ leave_request_id: id, action: approve ? "approve" : "reject" }),
+  });
 }
 
 // ---------------------------------------------------------------------------
-// Attendance
+// Attendance — schema only has check_in/check_out (no lunch columns); the UI's
+// Lunch Start/Lunch End punch types are accepted but are no-ops here (nothing
+// in the UI currently dispatches them — the check-in/check-out toggle is the
+// only wired action — so this degrades safely rather than faking persistence).
 // ---------------------------------------------------------------------------
-export function buildPunches(row: AttendanceRow | null): AttendancePunch[] {
+export function buildPunches(row: DbAttendance | null): AttendancePunch[] {
   const steps: { type: AttendancePunch["type"]; iso: string | null; icon: string }[] = [
     { type: "Check In", iso: row?.check_in ?? null, icon: "login" },
-    { type: "Lunch Start", iso: row?.lunch_start ?? null, icon: "restaurant" },
-    { type: "Lunch End", iso: row?.lunch_end ?? null, icon: "check" },
     { type: "Check Out", iso: row?.check_out ?? null, icon: "logout" },
   ];
   let currentAssigned = false;
@@ -310,32 +341,31 @@ export function buildPunches(row: AttendanceRow | null): AttendancePunch[] {
 }
 
 export async function addAttendancePunch(supabase: Client, employeeId: string, type: AttendancePunch["type"]): Promise<void> {
+  if (type === "Lunch Start" || type === "Lunch End") return; // no backing column in this schema
+
   const date = todayStr();
   const nowIso = new Date().toISOString();
-  const column: "check_in" | "check_out" | "lunch_start" | "lunch_end" =
-    type === "Check In" ? "check_in" : type === "Check Out" ? "check_out" : type === "Lunch Start" ? "lunch_start" : "lunch_end";
 
   const { data: existing, error: selErr } = await supabase
     .from("attendance")
-    .select("id")
+    .select("id, check_in, check_out")
     .eq("employee_id", employeeId)
     .eq("date", date)
     .maybeSingle();
   if (selErr) throw selErr;
 
   if (existing) {
-    const patch: Partial<Pick<AttendanceRow, "check_in" | "check_out" | "lunch_start" | "lunch_end">> = {};
-    patch[column] = nowIso;
+    const patch = type === "Check In" ? { check_in: nowIso } : { check_out: nowIso };
     const { error } = await supabase.from("attendance").update(patch).eq("id", existing.id);
     if (error) throw error;
   } else {
-    const insertRow: Database["public"]["Tables"]["attendance"]["Insert"] = {
+    const { error } = await supabase.from("attendance").insert({
       employee_id: employeeId,
       date,
       status: "present",
-      [column]: nowIso,
-    };
-    const { error } = await supabase.from("attendance").insert(insertRow);
+      check_in: type === "Check In" ? nowIso : null,
+      check_out: type === "Check Out" ? nowIso : null,
+    });
     if (error) throw error;
   }
 }
@@ -406,87 +436,86 @@ export async function loadWeeklyAttendance(supabase: Client, employeeId: string)
 }
 
 // ---------------------------------------------------------------------------
-// Payroll
+// Payroll — computed payslips via GET /api/payroll/slip (statutory deductions
+// are business logic, not something the frontend re-derives). There is no
+// bulk "run payroll" write endpoint in this backend (see runPayrollCycleNote).
 // ---------------------------------------------------------------------------
-export function mapPayrollRow(row: PayrollRow, employee: { name: string; title: string; avatar: string } | undefined): PayrollRecord {
-  return {
-    id: row.id,
-    name: employee?.name ?? "—",
-    role: employee?.title ?? "—",
-    avatar: employee?.avatar,
-    baseSalary: row.basic_salary,
-    allowances: row.allowances,
-    deductions: row.deductions,
-    netPay: row.net_salary,
-  };
+function isFullBreakdown(slip: PayslipBreakdown | { employeeId: string; month: string; netSalary: number }): slip is PayslipBreakdown {
+  return "basicSalary" in slip;
+}
+
+export async function fetchPayslip(
+  employeeId?: string,
+  month?: string
+): Promise<PayslipBreakdown | { employeeId: string; month: string; netSalary: number }> {
+  const params = new URLSearchParams();
+  if (employeeId) params.set("employee_id", employeeId);
+  if (month) params.set("month", month);
+  const qs = params.toString();
+  return apiCall(`/api/payroll/slip${qs ? `?${qs}` : ""}`);
 }
 
 export async function loadPayroll(supabase: Client, self: UserProfile): Promise<PayrollRecord[]> {
-  const [rows, directory] = await Promise.all([fetchPayroll(supabase), fetchDirectory(supabase)]);
-  const byId = new Map(directory.map((d) => [d.id, d]));
-  return rows.map((row) => {
-    const emp = byId.get(row.employee_id);
-    return mapPayrollRow(row, {
-      name: emp?.full_name ?? (row.employee_id === self.id ? self.name : "—"),
-      title: emp?.job_title ?? (row.employee_id === self.id ? self.title : "—"),
-      avatar: emp ? avatarFor(emp.full_name, emp.profile_picture_url) : self.avatar,
-    });
-  });
+  const employees = self.role === "employee" ? [{ id: self.id, name: self.name, title: self.title, avatar: self.avatar }] : (await fetchEmployeesFull(supabase)).map((e) => ({ id: e.id, name: e.full_name, title: e.job_title ?? "—", avatar: avatarFor(e.full_name, e.profile_picture_url) }));
+
+  const records = await Promise.all(
+    employees.map(async (e): Promise<PayrollRecord | null> => {
+      try {
+        const slip = await fetchPayslip(e.id);
+        if (!isFullBreakdown(slip)) {
+          // Manager without compensation_visibility on this report — net total only.
+          return { id: e.id, name: e.name, role: e.title, avatar: e.avatar, baseSalary: 0, allowances: 0, deductions: 0, netPay: slip.netSalary };
+        }
+        return {
+          id: e.id,
+          name: e.name,
+          role: e.title,
+          avatar: e.avatar,
+          baseSalary: slip.basicSalary,
+          allowances: slip.hra + slip.specialAllowance,
+          deductions: slip.totalDeductions,
+          netPay: slip.netSalary,
+        };
+      } catch {
+        return null; // no salary record for this employee this month
+      }
+    })
+  );
+  return records.filter((r): r is PayrollRecord => r !== null);
 }
 
-const currentPayPeriod = (): string => new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" });
-
-/** Runs the current pay cycle: upserts a payroll row per employee with a base salary set. */
-export async function runPayrollCycle(supabase: Client, includeBonus: boolean): Promise<void> {
-  const employees = await fetchEmployeesFull(supabase);
-  const payPeriod = currentPayPeriod();
-  const rows = employees
-    .filter((e) => e.base_salary != null)
-    .map((e) => ({
-      employee_id: e.id,
-      pay_period: payPeriod,
-      basic_salary: e.base_salary!,
-      allowances: includeBonus ? Math.round((e.base_salary! * e.bonus_percent) / 100) : 0,
-      deductions: 0,
-    }));
-  if (rows.length === 0) return;
-  const { error } = await supabase.from("payroll").upsert(rows, { onConflict: "employee_id,pay_period" });
-  if (error) throw error;
-}
+/** There is no bulk payroll-run endpoint in this backend — salary changes are per-employee bitemporal writes by HR/admin. */
+export const RUN_PAYROLL_UNAVAILABLE_MESSAGE =
+  "There's no bulk \"run payroll\" action in this environment — salary records are updated per employee by HR/Admin, and this view already reflects the current computed payslips.";
 
 // ---------------------------------------------------------------------------
-// Profile edits
+// Profile edits — only columns that exist on `employees` are writable here.
 // ---------------------------------------------------------------------------
 export async function updateEmployeeProfile(
   supabase: Client,
   id: string,
-  updated: Partial<Pick<UserProfile, "name" | "email" | "phone" | "address" | "birthDate">>
+  updated: Partial<Pick<UserProfile, "name" | "email" | "phone" | "address">>
 ): Promise<void> {
-  const patch: Database["public"]["Tables"]["employees"]["Update"] = {};
+  const patch: Partial<Employee> = {};
   if (updated.name !== undefined) patch.full_name = updated.name;
   if (updated.email !== undefined) patch.email = updated.email;
   if (updated.phone !== undefined) patch.phone = updated.phone;
   if (updated.address !== undefined) patch.address = updated.address;
-  if (updated.birthDate !== undefined) {
-    const parsed = new Date(updated.birthDate);
-    patch.date_of_birth = Number.isNaN(parsed.getTime()) ? null : parsed.toISOString().slice(0, 10);
-  }
   const { error } = await supabase.from("employees").update(patch).eq("id", id);
   if (error) throw error;
 }
 
 // ---------------------------------------------------------------------------
-// Recent activity feed — derived from attendance + leave + payroll, no dedicated table.
+// Recent activity feed — derived from attendance + leave events, no dedicated table.
 // ---------------------------------------------------------------------------
 export function buildRecentActivity(opts: {
-  attendanceToday: AttendanceRow[];
-  leaveRows: LeaveRow[];
-  payrollRows: PayrollRow[];
-  directory: DirectoryRow[];
+  attendanceToday: DbAttendance[];
+  leaveRows: DbLeaveRequest[];
+  employees: Employee[];
   self: UserProfile;
 }): ActivityItem[] {
-  const { attendanceToday, leaveRows, payrollRows, directory, self } = opts;
-  const byId = new Map(directory.map((d) => [d.id, d]));
+  const { attendanceToday, leaveRows, employees, self } = opts;
+  const byId = new Map(employees.map((e) => [e.id, e]));
   const nameOf = (id: string) => (id === self.id ? self.name : byId.get(id)?.full_name ?? "Someone");
 
   const items: (ActivityItem & { at: number })[] = [];
@@ -519,31 +548,22 @@ export function buildRecentActivity(opts: {
   }
 
   for (const row of leaveRows.slice(0, 15)) {
-    const isNew = row.status === "pending";
+    const label =
+      row.status === "pending"
+        ? `${nameOf(row.employee_id)} requested ${LEAVE_TYPE_FROM_DB[row.leave_type]}`
+        : row.status === "escalated"
+        ? `Escalated: ${nameOf(row.employee_id)}'s ${LEAVE_TYPE_FROM_DB[row.leave_type]} request`
+        : `${row.status === "approved" ? "Approved" : "Rejected"}: ${nameOf(row.employee_id)}'s ${LEAVE_TYPE_FROM_DB[row.leave_type]}`;
+
     items.push({
       id: `leave-${row.id}`,
-      title: isNew
-        ? `${nameOf(row.employee_id)} requested ${LEAVE_TYPE_FROM_DB[row.leave_type]}`
-        : `${row.status === "approved" ? "Approved" : "Rejected"}: ${nameOf(row.employee_id)}'s ${LEAVE_TYPE_FROM_DB[row.leave_type]}`,
+      title: label,
       subtitle: `${fmtDate(row.start_date)} - ${fmtDate(row.end_date)}`,
       timeAgo: new Date(row.updated_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      icon: row.status === "approved" ? "check_circle" : row.status === "rejected" ? "cancel" : "flight_takeoff",
-      iconBg: row.status === "rejected" ? "bg-[#ffdad6]/40" : "bg-[#c8ead8]/40",
-      iconColor: row.status === "rejected" ? "text-[#93000a]" : "text-[#436153]",
+      icon: row.status === "approved" ? "check_circle" : row.status === "rejected" ? "cancel" : row.status === "escalated" ? "priority_high" : "flight_takeoff",
+      iconBg: row.status === "rejected" ? "bg-[#ffdad6]/40" : row.status === "escalated" ? "bg-[#fef3c7]" : "bg-[#c8ead8]/40",
+      iconColor: row.status === "rejected" ? "text-[#93000a]" : row.status === "escalated" ? "text-[#b45309]" : "text-[#436153]",
       at: new Date(row.updated_at).getTime(),
-    });
-  }
-
-  for (const row of payrollRows.slice(0, 10)) {
-    items.push({
-      id: `pay-${row.id}`,
-      title: `Payslip available (${row.pay_period})`,
-      subtitle: `${nameOf(row.employee_id)} • net $${row.net_salary.toLocaleString("en-US", { minimumFractionDigits: 2 })}`,
-      timeAgo: new Date(row.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" }),
-      icon: "receipt_long",
-      iconBg: "bg-[#e9e2d3]",
-      iconColor: "text-[#625e52]",
-      at: new Date(row.created_at).getTime(),
     });
   }
 

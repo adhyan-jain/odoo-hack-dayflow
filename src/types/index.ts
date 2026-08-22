@@ -1,4 +1,6 @@
-export type UserRole = 'employee' | 'admin';
+// ── Frontend UI types (owned by frontend dev, do not modify) ─────────────────
+
+export type UserRole = 'employee' | 'hr' | 'admin';
 
 export interface UserProfile {
   id: string;
@@ -10,10 +12,8 @@ export interface UserProfile {
   email: string;
   phone: string;
   address: string;
-  birthDate: string;
   joinDate: string;
   tenure: string;
-  employmentType: string;
   manager: {
     name: string;
     title: string;
@@ -21,16 +21,16 @@ export interface UserProfile {
   };
   salary: {
     base: number;
-    bonusPercent: number;
-    equity: number;
+    hra: number;
+    specialAllowance: number;
   };
   avatar: string;
   leaveBalanceDays: number;
   attendanceRate: number;
 }
 
-export type LeaveType = 'Annual Leave' | 'Sick Leave' | 'Personal Leave' | 'Maternity/Paternity';
-export type LeaveStatus = 'Pending Review' | 'Approved' | 'Rejected';
+export type LeaveType = 'Paid Leave' | 'Sick Leave' | 'Unpaid Leave';
+export type LeaveStatus = 'Pending Review' | 'Approved' | 'Rejected' | 'Escalated';
 
 export interface LeaveRequest {
   id: string;
@@ -115,3 +115,29 @@ export interface PayrollRecord {
   deductions: number;
   netPay: number;
 }
+
+// ── Backend DB types (re-exported from lib/types.ts for API route consumers) ──
+// NOTE: The frontend dev uses the types above (UI shapes). These re-exports are
+// for backend API routes and any frontend code that directly consumes the API.
+// To avoid naming collisions, import from '@/lib/types' directly in API routes.
+export type {
+  AttendanceStatus,
+  Employee as DbEmployee,
+  Attendance as DbAttendance,
+  LeaveRequest as DbLeaveRequest,
+  SalaryRecord,
+  ReportingEdge,
+  LeaveBalance,
+  TeamCoverageConfig,
+  Resource,
+  Action,
+  AccessResult,
+  DateRange,
+  CoverageBreach,
+  CoverageResult,
+  PayslipBreakdown,
+  OrgNode,
+  OrgRewindResponse,
+  ApiResponse,
+  Database,
+} from '@/lib/types';

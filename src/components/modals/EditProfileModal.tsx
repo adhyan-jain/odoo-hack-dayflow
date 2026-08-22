@@ -18,7 +18,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
   const [email, setEmail] = useState(currentUser.email);
   const [phone, setPhone] = useState(currentUser.phone);
   const [address, setAddress] = useState(currentUser.address);
-  const [birthDate, setBirthDate] = useState(currentUser.birthDate);
 
   if (!isOpen) return null;
 
@@ -29,7 +28,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       email,
       phone,
       address,
-      birthDate,
     });
     onClose();
   };
@@ -111,19 +109,6 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
               required
               value={address}
               onChange={(e) => setAddress(e.target.value)}
-              className="w-full h-11 rounded-full bg-[#f4f4f1] border-0 px-4 text-sm text-[#1a1c1b] focus:ring-2 focus:ring-[#5b7a6b] outline-none"
-            />
-          </div>
-
-          <div>
-            <label className="text-xs font-semibold text-[#1a1c1b] uppercase tracking-wider block mb-1.5">
-              Date of Birth
-            </label>
-            <input
-              type="text"
-              required
-              value={birthDate}
-              onChange={(e) => setBirthDate(e.target.value)}
               className="w-full h-11 rounded-full bg-[#f4f4f1] border-0 px-4 text-sm text-[#1a1c1b] focus:ring-2 focus:ring-[#5b7a6b] outline-none"
             />
           </div>

@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import {
   UserProfile,
-  UserRole,
   LeaveRequest,
   AttendancePunch,
   DayAttendance,
@@ -36,10 +35,9 @@ import {
   createLeaveRequest,
   fetchAttendanceRange,
   fetchAttendanceToday,
-  fetchDirectory,
+  fetchEmployeesFull,
   fetchLeaveRequests,
   fetchMyEmployeeRow,
-  fetchPayroll,
   loadEmployeeRoster,
   loadLeaveRequests,
   loadPayroll,
@@ -47,8 +45,7 @@ import {
   mapEmployeeToProfile,
   mapPendingApprovals,
   reviewLeaveRequest,
-  roleToDb,
-  runPayrollCycle,
+  RUN_PAYROLL_UNAVAILABLE_MESSAGE,
   updateEmployeeProfile,
 } from '@/lib/supabase/hrms';
 
@@ -67,12 +64,10 @@ const EMPTY_PROFILE: UserProfile = {
   email: '',
   phone: '',
   address: '',
-  birthDate: '—',
   joinDate: '—',
   tenure: '—',
-  employmentType: '—',
   manager: { name: '—', title: '—', avatar: '' },
-  salary: { base: 0, bonusPercent: 0, equity: 0 },
+  salary: { base: 0, hra: 0, specialAllowance: 0 },
   avatar: '',
   leaveBalanceDays: 0,
   attendanceRate: 0,
@@ -113,7 +108,6 @@ interface AppContextType {
     email: string;
     password: string;
     fullName: string;
-    role: UserRole;
   }) => Promise<{ error: string | null }>;
   handleSignOut: () => void;
   handleToggleActionItem: (id: string) => void;
@@ -355,16 +349,15 @@ function RealAppProvider({ children }: { children: ReactNode }) {
       setCurrentUser(profile);
 
       const today = new Date().toISOString().slice(0, 10);
-      const [todayRows, weekly, leaveList, payroll, roster, allLeaveRows, directory, attendanceToday, rawPayroll] = await Promise.all([
+      const [todayRows, weekly, leaveList, payroll, roster, allLeaveRows, employees, attendanceToday] = await Promise.all([
         fetchAttendanceRange(supabase, uid, today, today),
         loadWeeklyAttendance(supabase, uid),
         loadLeaveRequests(supabase, profile),
         loadPayroll(supabase, profile),
         loadEmployeeRoster(supabase),
         fetchLeaveRequests(supabase),
-        fetchDirectory(supabase),
+        fetchEmployeesFull(supabase),
         fetchAttendanceToday(supabase),
-        fetchPayroll(supabase),
       ]);
 
       setPunches(buildPunches(todayRows[0] ?? null));
@@ -373,15 +366,15 @@ function RealAppProvider({ children }: { children: ReactNode }) {
       setPayrollRecords(payroll);
       setEmployeeRoster(roster);
 
-      const pending = profile.role === 'admin' ? mapPendingApprovals(allLeaveRows, directory) : [];
+      const pending = profile.role !== 'employee' ? mapPendingApprovals(allLeaveRows, employees) : [];
       setPendingApprovals(pending);
-      setRecentActivities(buildRecentActivity({ attendanceToday, leaveRows: allLeaveRows, payrollRows: rawPayroll, directory, self: profile }));
+      setRecentActivities(buildRecentActivity({ attendanceToday, leaveRows: allLeaveRows, employees, self: profile }));
 
       const items: ActionItem[] = [];
       if (!empRow.phone || !empRow.address || !empRow.job_title) {
         items.push({ id: 'ai-complete-profile', title: 'Complete your profile details', status: 'pending', dotColor: 'tertiary' });
       }
-      if (profile.role === 'admin' && pending.length > 0) {
+      if (profile.role !== 'employee' && pending.length > 0) {
         items.push({
           id: 'ai-pending-leave',
           title: `${pending.length} leave request${pending.length === 1 ? '' : 's'} awaiting your review`,
@@ -471,11 +464,11 @@ function RealAppProvider({ children }: { children: ReactNode }) {
   );
 
   const handleSignUp = useCallback(
-    async ({ email, password, fullName, role }: { email: string; password: string; fullName: string; role: UserRole }) => {
+    async ({ email, password, fullName }: { email: string; password: string; fullName: string }) => {
       const { data, error } = await supabase.auth.signUp({
         email,
         password,
-        options: { data: { full_name: fullName, role: roleToDb(role) } },
+        options: { data: { full_name: fullName } },
       });
       if (error) return { error: error.message };
       if (data.session && data.user) {
@@ -508,15 +501,15 @@ function RealAppProvider({ children }: { children: ReactNode }) {
 
   const handleApplyLeaveSubmit = useCallback(
     (newReq: Omit<LeaveRequest, 'id'>) =>
-      withRefresh((uid) =>
-        createLeaveRequest(supabase, uid, {
+      withRefresh(() =>
+        createLeaveRequest({
           leaveType: newReq.leaveType,
           startDate: newReq.startDate,
           endDate: newReq.endDate,
           notes: newReq.notes,
         })
       )(),
-    [withRefresh, supabase]
+    [withRefresh]
   );
 
   const handleEditProfileSave = useCallback(
@@ -524,12 +517,11 @@ function RealAppProvider({ children }: { children: ReactNode }) {
     [withRefresh, supabase]
   );
 
-  const handleRunPayroll = useCallback(() => withRefresh(() => runPayrollCycle(supabase, true))(), [withRefresh, supabase]);
+  const handleRunPayroll = useCallback(() => {
+    alert(RUN_PAYROLL_UNAVAILABLE_MESSAGE);
+  }, []);
 
-  const reviewLeave = useCallback(
-    (id: string, approve: boolean) => withRefresh((uid) => reviewLeaveRequest(supabase, id, uid, approve))(),
-    [withRefresh, supabase]
-  );
+  const reviewLeave = useCallback((id: string, approve: boolean) => withRefresh(() => reviewLeaveRequest(id, approve))(), [withRefresh]);
 
   const handleToggleActionItem = useCallback((id: string) => {
     setActionItems((prev) => prev.filter((item) => item.id !== id));

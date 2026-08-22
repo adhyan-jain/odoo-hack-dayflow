@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAppContext } from '@/context/AppContext';
-import { UserRole } from '@/types';
 
 const BYPASS_AUTH = process.env.NEXT_PUBLIC_BYPASS_AUTH === 'true';
 
@@ -16,7 +15,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ mode }) => {
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState(BYPASS_AUTH ? 'alex.morgan@dayflow.inc' : '');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('employee');
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -30,7 +28,7 @@ export const AuthView: React.FC<AuthViewProps> = ({ mode }) => {
     setError(null);
     setInfo(null);
     setSubmitting(true);
-    const result = isSignUp ? await handleSignUp({ email, password, fullName, role }) : await handleSignIn(email, password);
+    const result = isSignUp ? await handleSignUp({ email, password, fullName }) : await handleSignIn(email, password);
     setSubmitting(false);
 
     if (result.error) {
@@ -78,32 +76,6 @@ export const AuthView: React.FC<AuthViewProps> = ({ mode }) => {
               >
                 <span className="w-1.5 h-1.5 rounded-full bg-[#5b7a6b]" />
                 Sarah (Admin)
-              </button>
-            </div>
-          )}
-
-          {/* Role picker on real sign-up — defaults to Employee; nobody self-elevates by accident. */}
-          {isSignUp && !BYPASS_AUTH && (
-            <div className="flex bg-[#eeeeeb] p-1 rounded-full text-xs font-medium text-[#424844]">
-              <button
-                type="button"
-                onClick={() => setRole('employee')}
-                className={`flex-1 py-1.5 rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  role === 'employee' ? 'bg-[#FFFFFF] text-[#022016] font-semibold shadow-sm' : 'hover:text-[#1a1c1b]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#5b7a6b]" />
-                Employee
-              </button>
-              <button
-                type="button"
-                onClick={() => setRole('admin')}
-                className={`flex-1 py-1.5 rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                  role === 'admin' ? 'bg-[#FFFFFF] text-[#022016] font-semibold shadow-sm' : 'hover:text-[#1a1c1b]'
-                }`}
-              >
-                <span className="w-1.5 h-1.5 rounded-full bg-[#5b7a6b]" />
-                HR Admin
               </button>
             </div>
           )}

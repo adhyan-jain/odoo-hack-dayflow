@@ -20,10 +20,8 @@ export const ALEX_PROFILE: UserProfile = {
   email: 'alex.morgan@dayflow.inc',
   phone: '+1 (555) 234-5678',
   address: '1420 Pinecrest Way, Apt 3A, San Francisco, CA 94107',
-  birthDate: 'June 18, 1993',
   joinDate: 'February 10, 2022',
   tenure: '2y 4m',
-  employmentType: 'Full-Time (Salaried)',
   manager: {
     name: 'Sarah Jenkins',
     title: 'Director of Product Design',
@@ -32,8 +30,8 @@ export const ALEX_PROFILE: UserProfile = {
   },
   salary: {
     base: 135000,
-    bonusPercent: 12,
-    equity: 3200,
+    hra: 27000,
+    specialAllowance: 8500,
   },
   avatar:
     'https://lh3.googleusercontent.com/aida-public/AB6AXuAA41u7uxsnvU3i6MBOj2rjHGrooAGCm7C5VukXiP9qjnaoJomIvI3nzS9p4rPY93hrGaieDRm1MpQz4daNsFVIyx_oZvqXNWBHm8ytVl9ZwqAmvUDUhfUKQbBIl8mxyOLgNz3snnDk9ONKPjt68gfzWxiaKFGonZ4r40JpLpgdM0epbj1wSzyLiQfbbDPUXxdQFhcK3-wYfz5y0S4lqZgiciozTMiweC4PT73dtZMxxjKRkzwt45dx',
@@ -51,10 +49,8 @@ export const SARAH_PROFILE: UserProfile = {
   email: 'sarah.jenkins@dayflow.inc',
   phone: '+1 (555) 019-8234',
   address: '4920 Serenity Lane, Apt 4B, Seattle, WA 98109',
-  birthDate: 'October 12, 1988',
   joinDate: 'March 15, 2021',
   tenure: '2y 8m',
-  employmentType: 'Full-Time (Salaried)',
   manager: {
     name: 'David Chen',
     title: 'VP Product',
@@ -63,8 +59,8 @@ export const SARAH_PROFILE: UserProfile = {
   },
   salary: {
     base: 165000,
-    bonusPercent: 15,
-    equity: 4500,
+    hra: 33000,
+    specialAllowance: 11000,
   },
   avatar:
     'https://lh3.googleusercontent.com/aida-public/AB6AXuDGM4RuGzmjUs9Ph46NUqBCm2e62-NqwTtZ9-rgGPbIs6-pFQVO6CpcFGpK_82p6ZV82URTRRkSUmsA5t4_mVPtZcnp6qS8zOZFzdSgd42bOh1T-to9EK_xjyuQuHBt9StHt2FXrmpbCcFhZeq2n8l1foCIVMqzeb0-V472rQiMlz_pyB_NHR-HdkpfUSQJUS05SO7rqW2mUzUzT_UvqLkImu4s-gI8fTGeNRxbRFjJISr0GfgPgoPV',
@@ -228,7 +224,7 @@ export const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
     employeeAvatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBv9qp2annmTPjq0qnF7gbq7_08oLgXbI-2JHX-zxpS43pOgLEg32lEFZuZVpGatYiEUijeaXoQbZFuOoGkLA4yIXmq9c798FVAHVMa2Twj5CDvYBAPT3bYqQqqtjx27zNn2e-WZdgSb4iYbMuIwKztY1nHlux2QDoJ4eH7QN9GvlHpr9_4visQWk8KCBLImAURjdS6NpesB0QBkhUUU9ADWYEbno5V9irMyVu_lXc28dmiBDWHR341',
     employeeId: 'EMP-8492',
-    leaveType: 'Annual Leave',
+    leaveType: 'Paid Leave',
     startDate: 'Nov 01, 2023',
     endDate: 'Nov 15, 2023',
     durationDays: 10,
@@ -242,7 +238,7 @@ export const INITIAL_LEAVE_REQUESTS: LeaveRequest[] = [
     employeeAvatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAuB7GHPzf7Wh3HEb5u0IQv9ADn_Z_YKFG3jYzQ8Pl7pYI09SkU2RgQBMuW7OMLy2-ucz_mWETYjbAPby-5JCrZxviuXdcWs1ZD08d1riLyRLgMi2is6vB3Wr7LM8GFIXqgandERE5Pw_I8R-QirzRfmZplwGsrdoE4RlukqwW7ONtZeoJ4jwObW_x4T_xuo4Xupid8ko-F2tm6bPVlUVYH1sIt2F8-QbqDb3WAirXJ6gvOAtd96-O_',
     employeeId: 'EMP-1892',
-    leaveType: 'Personal Leave',
+    leaveType: 'Unpaid Leave',
     startDate: 'Nov 20, 2023',
     endDate: 'Nov 22, 2023',
     durationDays: 2,

@@ -1,0 +1,6 @@
+{
+  "name": "Dayflow HRMS",
+  "description": "A quiet luxury, warm minimalist HR management and workforce platform for modern teams.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

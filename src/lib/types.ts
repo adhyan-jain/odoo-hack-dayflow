@@ -110,7 +110,7 @@ export interface TeamCoverageConfig {
 
 // ── Permission layer types (lib/permissions.ts) ───────────────────────────────
 
-export type Resource = 'attendance' | 'leave' | 'salary' | 'profile' | 'org';
+export type Resource = 'attendance' | 'leave' | 'payroll' | 'profile' | 'org';
 export type Action = 'read' | 'write' | 'approve';
 export type AccessResult = 'allow' | 'deny' | 'allow_partial';
 

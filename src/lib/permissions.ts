@@ -35,7 +35,7 @@ export async function canAccess(
   // ── 1. Self access ──────────────────────────────────────────────────────────
   if (requestingUser.id === targetEmployeeId) {
     if (action === 'approve')                        return 'deny'; // no self-approval
-    if (resource === 'salary' && action !== 'read')  return 'deny';
+    if (resource === 'payroll' && action !== 'read')  return 'deny';
     if (resource === 'org'    && action === 'write') return 'deny';
     return 'allow';
   }
@@ -49,7 +49,7 @@ export async function canAccess(
   // ARCHITECTURE.md §8: "salary for hr: return allow_partial"
   // HR can read salary for payroll purposes, but not the full breakdown.
   if (requestingUser.role === 'hr') {
-    if (resource === 'salary') return 'allow_partial';
+    if (resource === 'payroll') return 'allow_partial';
     return 'allow';
   }
 
@@ -72,7 +72,7 @@ export async function canAccess(
   if (!match) return 'deny';
 
   // ── 5. Target IS in the manager's tree ─────────────────────────────────────
-  if (resource === 'salary') {
+  if (resource === 'payroll') {
     const { data: empData } = await supabaseAdmin
       .from('employees')
       .select('compensation_visibility')

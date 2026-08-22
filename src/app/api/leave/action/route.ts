@@ -78,6 +78,13 @@ export async function POST(
   const requestingUser = requestorResult.data as Pick<Employee, 'id' | 'role'>;
 
   // ── 4. Permission check ─────────────────────────────────────────────────────
+  if (leaveRequest.status !== 'pending') {
+    return NextResponse.json(
+      { data: null, error: 'Leave request has already been processed' },
+      { status: 400 },
+    );
+  }
+
   const access = await canAccess(
     requestingUser,
     leaveRequest.employee_id,
@@ -159,6 +166,7 @@ export async function POST(
       updated_at:        now,
     })
     .eq('id', leave_request_id as string)
+    .eq('status', 'pending')
     .select()
     .single();
 

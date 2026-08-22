@@ -117,8 +117,8 @@ export type AccessResult = 'allow' | 'deny' | 'allow_partial';
 // ── Coverage algorithm types (lib/coverage.ts) ────────────────────────────────
 
 export interface DateRange {
-  from: Date;
-  to: Date;
+  from: string;                        // ISO date string "YYYY-MM-DD"
+  to: string;                          // ISO date string "YYYY-MM-DD"
 }
 
 export interface CoverageBreach {

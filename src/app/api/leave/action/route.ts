@@ -128,7 +128,7 @@ export async function POST(
       const coverageResult = checkCoverage(
         teamMembers,
         approvedLeaves,
-        { from: new Date(leaveRequest.start_date), to: new Date(leaveRequest.end_date) },
+        { from: leaveRequest.start_date, to: leaveRequest.end_date },
         config,
         leaveRequest.employee_id,
       );

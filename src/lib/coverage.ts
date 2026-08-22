@@ -68,8 +68,18 @@ export function checkCoverage(
   requestingEmployeeId: string,
 ): CoverageResult {
   if (teamMembers.length === 0) {
-    // No team data — can't evaluate, default to safe to avoid blocking
-    return { safe: true, conflicts: [], suggestedDates: [] };
+    // Fail closed: if no team data is found, it's unsafe to evaluate coverage
+    return {
+      safe: false,
+      conflicts: [
+        {
+          date: 'unknown',
+          availableAfterApproval: 0,
+          minRequired: 1,
+        },
+      ],
+      suggestedDates: [],
+    };
   }
 
   // Find the department config. If no config exists, no coverage constraint applies.
@@ -82,7 +92,7 @@ export function checkCoverage(
 
   const minRequired   = deptConfig.min_headcount_required;
   const totalHeadcount = teamMembers.length;
-  const days = eachDayInRange(requestedRange.from, requestedRange.to);
+  const days = eachDayInRange(new Date(requestedRange.from), new Date(requestedRange.to));
   const conflicts: CoverageBreach[] = [];
 
   for (const day of days) {
@@ -172,8 +182,8 @@ export function suggestAlternativeDates(
 
     if (windowBreaches.length === 0) {
       suggestions.push({
-        from: new Date(windowDays[0]),
-        to:   new Date(windowDays[windowDays.length - 1]),
+        from: windowDays[0],
+        to:   windowDays[windowDays.length - 1],
       });
 
       // Return up to 3 suggestions

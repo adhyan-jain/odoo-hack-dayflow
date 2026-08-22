@@ -98,7 +98,7 @@ export async function POST(
   const result = checkCoverage(
     teamMembers,
     approvedLeaves,
-    { from: new Date(from_date as string), to: new Date(to_date as string) },
+    { from: from_date as string, to: to_date as string },
     config,
     requesting_employee_id as string,
   );

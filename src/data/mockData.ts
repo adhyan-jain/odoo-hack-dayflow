@@ -8,6 +8,8 @@ import {
   PendingApproval,
   EmployeeRosterItem,
   PayrollRecord,
+  createSalaryBreakdown,
+  DEFAULT_PROFILE_EXTRAS,
 } from '@/types';
 
 export const ALEX_PROFILE: UserProfile = {
@@ -28,15 +30,16 @@ export const ALEX_PROFILE: UserProfile = {
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuBSIq140tDlXAHCGhSKwjvBOFduOvDSGkRcTmy3KozI73rqVEHWoOMn_KFDOW4Ym00sHV_IH0jeysmpFohMPD7YdsRgyQ4jyNaztLwu-WE452ysGOxbfB9eKgY9YLZZQd30aplTKmYi31A9QMbLshidGd2L3XNrF6YwCrFhQ68wTxGIxVLuibdjnDo_CK0wezHe08JbxDhPmclmOa6HK9FHin7MsAuIHArCCuTWOuf_GEoVB0hRER96',
   },
-  salary: {
-    base: 135000,
-    hra: 27000,
-    specialAllowance: 8500,
-  },
+  salary: createSalaryBreakdown({ base: 135000, hra: 27000, specialAllowance: 8500 }),
   avatar:
     'https://lh3.googleusercontent.com/aida-public/AB6AXuAA41u7uxsnvU3i6MBOj2rjHGrooAGCm7C5VukXiP9qjnaoJomIvI3nzS9p4rPY93hrGaieDRm1MpQz4daNsFVIyx_oZvqXNWBHm8ytVl9ZwqAmvUDUhfUKQbBIl8mxyOLgNz3snnDk9ONKPjt68gfzWxiaKFGonZ4r40JpLpgdM0epbj1wSzyLiQfbbDPUXxdQFhcK3-wYfz5y0S4lqZgiciozTMiweC4PT73dtZMxxjKRkzwt45dx',
   leaveBalanceDays: 12,
   attendanceRate: 88,
+  ...DEFAULT_PROFILE_EXTRAS,
+  loginId: 'OIALMO20220001',
+  status: 'present',
+  about: 'Product designer focused on systems thinking and accessible UI.',
+  skills: ['Figma', 'Design Systems', 'Prototyping'],
 };
 
 export const SARAH_PROFILE: UserProfile = {
@@ -57,15 +60,15 @@ export const SARAH_PROFILE: UserProfile = {
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCe9Pq5hbvwnMT8oPlGciaE0fiZISXyD4w-NQzWIXXXjpZ28pZD4JMakdEdYW7Fvc7dknBEfb-VdhAC_hHk3uI-y2zex0qGhQVRvNxJkGnrvo2QdTwvuz0XnYXi3oevrqPOJggn3SQjwHcnAgQlA01_J3Yf9oOazvuR3HVT2Z_wam8EXwTNFpDADj67juB_zxdISgIQ1Ia1bUJ96nV7eMga-oCriNnfU_tBKHgZk33YBS3KMCoGauW8',
   },
-  salary: {
-    base: 165000,
-    hra: 33000,
-    specialAllowance: 11000,
-  },
+  salary: createSalaryBreakdown({ base: 165000, hra: 33000, specialAllowance: 11000 }),
   avatar:
     'https://lh3.googleusercontent.com/aida-public/AB6AXuDGM4RuGzmjUs9Ph46NUqBCm2e62-NqwTtZ9-rgGPbIs6-pFQVO6CpcFGpK_82p6ZV82URTRRkSUmsA5t4_mVPtZcnp6qS8zOZFzdSgd42bOh1T-to9EK_xjyuQuHBt9StHt2FXrmpbCcFhZeq2n8l1foCIVMqzeb0-V472rQiMlz_pyB_NHR-HdkpfUSQJUS05SO7rqW2mUzUzT_UvqLkImu4s-gI8fTGeNRxbRFjJISr0GfgPgoPV',
   leaveBalanceDays: 18,
   attendanceRate: 96,
+  ...DEFAULT_PROFILE_EXTRAS,
+  loginId: 'OISAJE20210001',
+  status: 'present',
+  compensationVisibility: true,
 };
 
 export const INITIAL_ACTION_ITEMS: ActionItem[] = [
@@ -152,6 +155,7 @@ export const INITIAL_EMPLOYEE_ROSTER: EmployeeRosterItem[] = [
     employeeCode: 'EMP-2041',
     department: 'Engineering',
     status: 'Active',
+    attendanceStatus: 'present',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuCJroW7ngteaVdPqSlkdolD_EzEwqy3wCg2Aq1Y7UHVk3EwKXGSBJOFU_BjhVS9Lm3CmiDGja9Zi-aovdJS7qi0SIhkOgTwzcTgLJRzsoJWoIfAk23HA1ZvANn06gc-QN0Vx76b6UERw6uJsVMPjsgA64HyOA8RaO6n8Ui3IvD5AN9iR2zIHc0uN0cwlC8yGI2CLO1mdIsxWfsZTAZrhhr5tp2kPTFMBJHAvdtXgsZalrEzmI0WMC2A',
     email: 'marcus.chen@dayflow.inc',
@@ -163,6 +167,7 @@ export const INITIAL_EMPLOYEE_ROSTER: EmployeeRosterItem[] = [
     employeeCode: 'EMP-1892',
     department: 'Marketing',
     status: 'Active',
+    attendanceStatus: 'present',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuAuB7GHPzf7Wh3HEb5u0IQv9ADn_Z_YKFG3jYzQ8Pl7pYI09SkU2RgQBMuW7OMLy2-ucz_mWETYjbAPby-5JCrZxviuXdcWs1ZD08d1riLyRLgMi2is6vB3Wr7LM8GFIXqgandERE5Pw_I8R-QirzRfmZplwGsrdoE4RlukqwW7ONtZeoJ4jwObW_x4T_xuo4Xupid8ko-F2tm6bPVlUVYH1sIt2F8-QbqDb3WAirXJ6gvOAtd96-O_',
     email: 'elena.rodriguez@dayflow.inc',
@@ -174,6 +179,7 @@ export const INITIAL_EMPLOYEE_ROSTER: EmployeeRosterItem[] = [
     employeeCode: 'EMP-1905',
     department: 'Sales',
     status: 'On Leave',
+    attendanceStatus: 'on_leave',
     initials: 'JD',
     email: 'james.donovan@dayflow.inc',
     role: 'Account Executive',
@@ -184,6 +190,7 @@ export const INITIAL_EMPLOYEE_ROSTER: EmployeeRosterItem[] = [
     employeeCode: 'EMP-1022',
     department: 'Finance',
     status: 'Active',
+    attendanceStatus: 'present',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuA0mBp2ifeJHnPOqVdeT5gNrigHE9ZoOc-I2R4jQFgt_GcXPWsFFE1xwHshLqP6wrwm04yuqCan1-lXLPpkIHM7vS-VgJJikqGNb_OA0thaa8SlAJ1SSMsh1POfG1v1qUTkC0sQJuaXSo5KRm4XlPS30O_lsr-Fa6K81jNI5OAqT4MDX_whFBT31lhD8dPnUgVO-401H2fw5qkdmxTDEqAnxjWNiF1jrXSYCeShnIJo5D3Aj_7p6iPc',
     email: 'robert.vance@dayflow.inc',
@@ -195,6 +202,7 @@ export const INITIAL_EMPLOYEE_ROSTER: EmployeeRosterItem[] = [
     employeeCode: 'EMP-2309',
     department: 'Design',
     status: 'Active',
+    attendanceStatus: 'absent',
     avatar:
       'https://lh3.googleusercontent.com/aida-public/AB6AXuB5TDFzAfRxWtH0HvLZZPqcLWmZcj7kyriF5xTx8S7Tn4GL150IXdBCr2cRltScA95gJTfCpkHV-g5zZMVQS_pncH9EjPevFKaMQjP3clQ9xTT6P4VGVmoalZN0HZdzak8cB9VVeCX0Zbn8d4nya04-q9xqfFDae6xoN04ysxkWM0A_iPGWmhGeThlaCSBUYHtCeui3hADkBTq-qLCRqYmBPvaPSzzABOt5OxcMgEary_rns1evtnQc',
     email: 'sarah.kline@dayflow.inc',

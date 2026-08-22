@@ -1,16 +1,8 @@
-"use client";
+import { redirect } from "next/navigation";
 
-import { useAppContext } from "@/context/AppContext";
-import { PayrollView } from "@/components/views/PayrollView";
-
+// Payroll now lives inside the Profile page's "Salary Info" tab (see
+// src/components/views/ProfileView.tsx). This route is kept only so old
+// links/bookmarks land somewhere sensible.
 export default function PayrollPage() {
-  const { currentUser, payrollRecords, setRunPayrollModalOpen } = useAppContext();
-
-  return (
-    <PayrollView
-      currentUser={currentUser}
-      payrollRecords={payrollRecords}
-      onOpenRunPayrollModal={() => setRunPayrollModalOpen(true)}
-    />
-  );
+  redirect("/profile");
 }

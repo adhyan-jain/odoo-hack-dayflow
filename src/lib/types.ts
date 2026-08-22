@@ -21,6 +21,8 @@ export type LeaveStatus = 'pending' | 'approved' | 'rejected' | 'escalated';
 export interface Employee {
   id: string;
   employee_code: string;
+  login_id: string | null;             // HR/Admin-provisioned login identifier, e.g. "OIJODO20220001"
+  must_change_password: boolean;       // true until the employee changes their system-generated password
   full_name: string;
   email: string;
   role: UserRole;
@@ -31,7 +33,34 @@ export interface Employee {
   date_of_joining: string | null;      // ISO date string "YYYY-MM-DD"
   profile_picture_url: string | null;
   compensation_visibility: boolean;    // if true, manager can see full salary breakdown
+  // ── Resume tab ──────────────────────────────────────────────────────────
+  about: string | null;
+  skills: string[];
+  certifications: string[];
+  interests: string | null;
+  resume_path: string | null;         // Storage object path in the private "resumes" bucket, or null
+  // ── Private Info tab: personal ─────────────────────────────────────────
+  date_of_birth: string | null;
+  gender: string | null;
+  marital_status: string | null;
+  nationality: string | null;
+  personal_email: string | null;
+  residing_address: string | null;
+  // ── Private Info tab: bank details ─────────────────────────────────────
+  bank_name: string | null;
+  bank_account_no: string | null;
+  ifsc_code: string | null;
+  uan_no: string | null;
+  pan_no: string | null;
   created_at: string;                  // ISO timestamptz
+  updated_at: string;
+}
+
+export interface CompanySettings {
+  id: true;
+  name: string;
+  logo_url: string | null;
+  created_at: string;
   updated_at: string;
 }
 
@@ -45,6 +74,9 @@ export interface ReportingEdge {
   superseded_at: string | null;        // null = current row of record
 }
 
+export type SalaryComponentCategory = 'earning' | 'employer_contribution' | 'deduction';
+export type SalaryComputationType = 'fixed' | 'percent';
+
 export interface SalaryRecord {
   id: string;
   employee_id: string;
@@ -52,10 +84,24 @@ export interface SalaryRecord {
   hra: number;
   special_allowance: number;
   deductions: number;
+  working_days_per_week: number;
+  standard_daily_hours: number;
+  break_minutes: number;
   valid_from: string;
   valid_to: string | null;
   recorded_at: string;
   superseded_at: string | null;
+}
+
+export interface SalaryComponent {
+  id: string;
+  salary_record_id: string;
+  employee_id: string;
+  name: string;
+  category: SalaryComponentCategory;
+  computation_type: SalaryComputationType;
+  value: number;                       // fixed: ₹/month amount. percent: 0-100 of basic_salary
+  created_at: string;
 }
 
 export interface Attendance {
@@ -77,6 +123,7 @@ export interface LeaveRequest {
   remarks: string | null;
   status: LeaveStatus;
   approver_id: string | null;
+  attachment_url: string | null;       // sick-leave certificate, required by app-layer validation for leave_type='sick'
   sla_deadline: string;
   escalated: boolean;
   escalated_at: string | null;
@@ -135,22 +182,38 @@ export interface CoverageResult {
 
 // ── Payroll types (lib/payroll.ts) ────────────────────────────────────────────
 
+export interface PayslipComponentLine {
+  name: string;
+  category: SalaryComponentCategory;
+  computationType: SalaryComputationType;
+  value: number;                       // as configured: ₹/month if fixed, % of basic if percent
+  monthlyAmount: number;               // resolved ₹/month amount
+}
+
 export interface PayslipBreakdown {
   employeeId: string;
   month: string;                       // "YYYY-MM"
-  // Gross components
+  workingDaysPerWeek: number;
+  standardDailyHours: number;
+  breakMinutes: number;
+  // Component-level breakdown (Basic/HRA/Standard Allowance/Performance Bonus/
+  // LTA/Fixed Allowance/etc.) — see salary_components.
+  components: PayslipComponentLine[];
+  // Gross components (retained flat for the payslip summary line)
   basicSalary: number;
   hra: number;
   specialAllowance: number;
   grossSalary: number;
   // Statutory deductions (hardcoded formulas — see ARCHITECTURE.md §12)
-  pf: number;                          // 12% of basic
+  pfEmployee: number;                  // 12% of basic, employee contribution
+  pfEmployer: number;                  // 12% of basic, employer contribution (not deducted from net pay)
   esi: number;                         // 0.75% of gross if gross < 21000, else 0
   professionalTax: number;             // 200 (Maharashtra flat slab)
   tds: number;                         // 10% of basic if basic > 50000/month, else 0
   otherDeductions: number;             // from salary_records.deductions
   totalDeductions: number;
   netSalary: number;
+  netSalaryYearly: number;
 }
 
 // ── Org tree type (returned by /api/org/rewind) ───────────────────────────────
@@ -234,6 +297,18 @@ export interface Database {
         Update: Partial<TeamCoverageConfig>;
         Relationships: [];
       };
+      company_settings: {
+        Row: CompanySettings;
+        Insert: Omit<CompanySettings, 'created_at' | 'updated_at'> & { id?: true };
+        Update: Partial<CompanySettings>;
+        Relationships: [];
+      };
+      salary_components: {
+        Row: SalaryComponent;
+        Insert: Omit<SalaryComponent, 'id' | 'created_at'>;
+        Update: Partial<SalaryComponent>;
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: {
@@ -264,6 +339,18 @@ export interface Database {
       current_employee_role: {
         Args: Record<string, never>;
         Returns: UserRole;
+      };
+      company_exists: {
+        Args: Record<string, never>;
+        Returns: boolean;
+      };
+      resolve_login_id_to_email: {
+        Args: { p_login_id: string };
+        Returns: string | null;
+      };
+      generate_login_id: {
+        Args: { p_full_name: string; p_join_year: number };
+        Returns: string;
       };
     };
   };

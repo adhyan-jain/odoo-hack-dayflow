@@ -14,6 +14,8 @@ import { createClient } from '@/lib/supabase/server';
 import { supabaseAdmin } from '@/lib/supabase/admin';
 import { canAccess } from '@/lib/permissions';
 import { checkCoverage } from '@/lib/coverage';
+import { sendEmail } from '@/lib/email/mailer';
+import { leaveRequestDecisionEmail } from '@/lib/email/templates';
 import type { ApiResponse, LeaveRequest, Employee, TeamCoverageConfig } from '@/lib/types';
 
 export async function POST(
@@ -211,6 +213,29 @@ export async function POST(
         valid_to:      null,
       });
     }
+  }
+
+  // ── 8. Best-effort decision email to the employee via Brevo ─────────────────
+  try {
+    const { data: employee } = await supabaseAdmin
+      .from('employees')
+      .select('full_name, email')
+      .eq('id', leaveRequest.employee_id)
+      .single();
+    const employeeRow = employee as { full_name: string; email: string } | null;
+    if (employeeRow?.email) {
+      const { subject, htmlContent } = leaveRequestDecisionEmail({
+        employeeName: employeeRow.full_name,
+        leaveType: leaveRequest.leave_type,
+        fromDate: leaveRequest.start_date,
+        toDate: leaveRequest.end_date,
+        decision: action === 'approve' ? 'approved' : 'rejected',
+        comments: typeof comments === 'string' ? comments : null,
+      });
+      await sendEmail({ to: { email: employeeRow.email, name: employeeRow.full_name }, subject, htmlContent });
+    }
+  } catch (err) {
+    console.error('[POST /api/leave/action] Decision email failed:', err instanceof Error ? err.message : err);
   }
 
   return NextResponse.json({ data: updated as LeaveRequest, error: null }, { status: 200 });

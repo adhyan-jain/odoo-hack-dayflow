@@ -16,6 +16,12 @@ import type { AccessResult, Resource, Action, UserRole } from '@/lib/types';
 
 export type { AccessResult, Resource, Action };
 
+/** Runtime guard narrowing an unknown value (e.g. a DB column read as
+ * unknown, or a request-body field) to the UserRole domain type. */
+export function isUserRole(value: unknown): value is UserRole {
+  return value === 'employee' || value === 'hr' || value === 'admin';
+}
+
 /**
  * Determines whether `requestingUser` may perform `action` on `resource`
  * belonging to `targetEmployeeId`.

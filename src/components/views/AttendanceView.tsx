@@ -1,22 +1,147 @@
-import React, { useState } from 'react';
-import { UserProfile, AttendancePunch, DayAttendance } from '@/types';
+import React, { useEffect, useMemo, useState } from 'react';
+import { AttendanceDayRow, AttendanceMonthSummary, AttendancePunch, DayAttendance, UserProfile } from '@/types';
 
 interface AttendanceViewProps {
   currentUser: UserProfile;
+  currentUserId: string;
   punches: AttendancePunch[];
   weeklyDays: DayAttendance[];
   onAddPunch: (type: 'Check In' | 'Lunch Start' | 'Lunch End' | 'Check Out') => void;
+  fetchAttendanceDayRoster: (date: string) => Promise<AttendanceDayRow[]>;
+  fetchAttendanceMonthSummaryFor: (employeeId: string, monthStart: string, monthEnd: string) => Promise<AttendanceMonthSummary>;
+  fetchAttendanceDayRowsFor: (employeeId: string, from: string, to: string) => Promise<AttendanceDayRow[]>;
 }
+
+const pad = (n: number) => String(n).padStart(2, '0');
+
+const toISODate = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+const parseISODate = (iso: string): Date => {
+  const [y, m, d] = iso.split('-').map(Number);
+  return new Date(y, (m || 1) - 1, d || 1);
+};
+
+const formatDisplayDate = (iso: string): string =>
+  parseISODate(iso).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+interface StatPillProps {
+  label: string;
+  value: number | string;
+  icon: string;
+}
+
+const StatPill: React.FC<StatPillProps> = ({ label, value, icon }) => (
+  <div className="bg-[#FFFFFF] rounded-[20px] p-5 bento-shadow flex items-center gap-4">
+    <div className="w-11 h-11 rounded-full bg-[#c8ead8]/40 text-[#436153] flex items-center justify-center shrink-0">
+      <span className="material-symbols-outlined text-[22px]">{icon}</span>
+    </div>
+    <div>
+      <p className="text-2xl font-bold text-[#1a1c1b] leading-tight">{value}</p>
+      <p className="text-xs text-[#424844] font-medium">{label}</p>
+    </div>
+  </div>
+);
 
 export const AttendanceView: React.FC<AttendanceViewProps> = ({
   currentUser,
+  currentUserId,
   punches,
   weeklyDays,
   onAddPunch,
+  fetchAttendanceDayRoster,
+  fetchAttendanceMonthSummaryFor,
+  fetchAttendanceDayRowsFor,
 }) => {
   const [viewMode, setViewMode] = useState<'Daily' | 'Weekly'>('Daily');
   const [isCheckedIn, setIsCheckedIn] = useState<boolean>(true);
   const [lastCheckInTime, setLastCheckInTime] = useState<string>('9:02 AM');
+
+  const isAdmin = currentUser.role !== 'employee';
+
+  // --- Admin/HR: single-day roster across all employees ---
+  const [selectedDate, setSelectedDate] = useState<Date>(() => new Date());
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [dayRoster, setDayRoster] = useState<AttendanceDayRow[]>([]);
+  const [rosterLoading, setRosterLoading] = useState(false);
+  const [rosterError, setRosterError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isAdmin) return;
+    let cancelled = false;
+    (async () => {
+      setRosterLoading(true);
+      setRosterError(null);
+      try {
+        const rows = await fetchAttendanceDayRoster(toISODate(selectedDate));
+        if (!cancelled) setDayRoster(rows);
+      } catch (err) {
+        if (!cancelled) setRosterError(err instanceof Error ? err.message : 'Failed to load attendance.');
+      } finally {
+        if (!cancelled) setRosterLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, selectedDate, fetchAttendanceDayRoster]);
+
+  const filteredRoster = useMemo(() => {
+    const q = rosterSearch.trim().toLowerCase();
+    if (!q) return dayRoster;
+    return dayRoster.filter((row) => row.employeeName.toLowerCase().includes(q));
+  }, [dayRoster, rosterSearch]);
+
+  const goToPrevDay = () =>
+    setSelectedDate((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() - 1));
+  const goToNextDay = () =>
+    setSelectedDate((prev) => new Date(prev.getFullYear(), prev.getMonth(), prev.getDate() + 1));
+
+  // --- Plain employee: month history + summary for self ---
+  const [selectedMonth, setSelectedMonth] = useState<Date>(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+  const [monthSummary, setMonthSummary] = useState<AttendanceMonthSummary | null>(null);
+  const [monthRows, setMonthRows] = useState<AttendanceDayRow[]>([]);
+  const [monthLoading, setMonthLoading] = useState(false);
+  const [monthError, setMonthError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (isAdmin) return;
+    let cancelled = false;
+    const monthEndDate = new Date(selectedMonth.getFullYear(), selectedMonth.getMonth() + 1, 0);
+    const from = toISODate(selectedMonth);
+    const to = toISODate(monthEndDate);
+
+    (async () => {
+      setMonthLoading(true);
+      setMonthError(null);
+      try {
+        const [summary, rows] = await Promise.all([
+          fetchAttendanceMonthSummaryFor(currentUserId, from, to),
+          fetchAttendanceDayRowsFor(currentUserId, from, to),
+        ]);
+        if (cancelled) return;
+        setMonthSummary(summary);
+        setMonthRows(rows);
+      } catch (err) {
+        if (!cancelled) setMonthError(err instanceof Error ? err.message : 'Failed to load attendance.');
+      } finally {
+        if (!cancelled) setMonthLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isAdmin, currentUserId, selectedMonth, fetchAttendanceMonthSummaryFor, fetchAttendanceDayRowsFor]);
+
+  const goToPrevMonth = () =>
+    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1));
+  const goToNextMonth = () =>
+    setSelectedMonth((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1));
+
+  const monthLabel = selectedMonth.toLocaleDateString([], { month: 'long', year: 'numeric' });
+  const todayLabel = new Date().toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
 
   const handleToggleCheckIn = () => {
     const now = new Date();
@@ -77,7 +202,7 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
 
         <div className="relative z-10 text-center md:text-left">
           <p className="text-sm md:text-base text-[#c8ead8] opacity-90 mb-1 font-medium">
-            Thursday, Oct 26
+            {todayLabel}
           </p>
           <h3 className="text-3xl md:text-4xl font-bold tracking-tight mb-2">
             {isCheckedIn ? `Checked in at ${lastCheckInTime}` : 'Checked Out'}
@@ -109,10 +234,11 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
       {/* Main Grid: Today's Activity & Weekly Overview */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Today's Activity Timeline (1 col) */}
+        {viewMode === 'Daily' && (
         <div className="lg:col-span-1 bg-[#FFFFFF] rounded-[20px] p-6 bento-shadow flex flex-col justify-between">
           <div>
             <div className="flex justify-between items-center mb-6">
-              <h3 className="text-xl font-bold text-[#1a1c1b] tracking-tight">Today's Activity</h3>
+              <h3 className="text-xl font-bold text-[#1a1c1b] tracking-tight">Today&apos;s Activity</h3>
               <span className="text-xs text-[#424844] font-medium bg-[#f4f4f1] px-2.5 py-1 rounded-full">
                 7h 45m today
               </span>
@@ -158,11 +284,12 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
             >
               End Lunch
             </button>
-          </div>
         </div>
+        </div>
+        )}
 
-        {/* Weekly Overview Bento (2 cols) */}
-        <div className="lg:col-span-2 bg-[#FFFFFF] rounded-[20px] p-6 bento-shadow flex flex-col">
+        {viewMode === 'Weekly' && (
+        <div className="lg:col-span-3 bg-[#FFFFFF] rounded-[20px] p-6 bento-shadow flex flex-col">
           <div className="flex justify-between items-end mb-6">
             <div>
               <h3 className="text-xl font-bold text-[#1a1c1b] tracking-tight">Weekly Overview</h3>
@@ -249,7 +376,173 @@ export const AttendanceView: React.FC<AttendanceViewProps> = ({
             })}
           </div>
         </div>
+        )}
       </div>
+
+      {isAdmin ? (
+        /* Admin/HR: day roster across all employees */
+        <div className="bg-[#FFFFFF] rounded-[20px] bento-shadow overflow-hidden flex flex-col">
+          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 p-6 border-b border-[#eeeeeb]">
+            <div>
+              <h3 className="text-xl font-bold text-[#1a1c1b] tracking-tight">Daily Attendance</h3>
+              <p className="text-xs text-[#424844] mt-0.5">All employees for the selected day</p>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap w-full md:w-auto">
+              <div className="relative w-full sm:w-56">
+                <span className="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-[#727974] text-[18px]">
+                  search
+                </span>
+                <input
+                  type="text"
+                  value={rosterSearch}
+                  onChange={(e) => setRosterSearch(e.target.value)}
+                  placeholder="Search employees..."
+                  className="w-full pl-10 pr-4 py-2 bg-[#faf9f7] rounded-full border border-[#c1c8c3]/30 text-sm text-[#1a1c1b] focus:ring-2 focus:ring-[#5b7a6b] focus:outline-none placeholder:text-[#727974]"
+                />
+              </div>
+              <div className="flex items-center gap-1 bg-[#f4f4f1] rounded-full p-1 shrink-0">
+                <button
+                  onClick={goToPrevDay}
+                  className="p-1.5 hover:bg-white rounded-full transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                <input
+                  type="date"
+                  value={toISODate(selectedDate)}
+                  onChange={(e) => e.target.value && setSelectedDate(parseISODate(e.target.value))}
+                  className="bg-transparent text-xs font-semibold text-[#1a1c1b] px-1 focus:outline-none cursor-pointer"
+                />
+                <button
+                  onClick={goToNextDay}
+                  className="p-1.5 hover:bg-white rounded-full transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div className="hidden md:grid grid-cols-12 gap-4 p-6 border-b border-[#eeeeeb] text-[#424844] text-xs font-semibold uppercase tracking-wider bg-[#faf9f7]/60">
+            <div className="col-span-4">Employee</div>
+            <div className="col-span-2">Check In</div>
+            <div className="col-span-2">Check Out</div>
+            <div className="col-span-2">Work Hours</div>
+            <div className="col-span-2">Extra Hours</div>
+          </div>
+
+          <div className="flex flex-col divide-y divide-[#eeeeeb]">
+            {rosterLoading ? (
+              <div className="p-12 text-center text-sm text-[#424844]">Loading attendance…</div>
+            ) : rosterError ? (
+              <div className="p-12 text-center text-sm text-[#ba1a1a]">{rosterError}</div>
+            ) : filteredRoster.length === 0 ? (
+              <div className="p-12 text-center text-sm text-[#424844]">
+                No attendance records for this day.
+              </div>
+            ) : (
+              filteredRoster.map((row) => (
+                <div
+                  key={row.employeeId}
+                  className="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-[#faf9f7] transition-colors"
+                >
+                  <div className="col-span-1 md:col-span-4 flex items-center gap-3.5">
+                    <div className="w-10 h-10 rounded-full overflow-hidden bg-[#e3e2e0] shrink-0 border border-[#c1c8c3]/40">
+                      {row.employeeAvatar ? (
+                        <img
+                          src={row.employeeAvatar}
+                          alt={row.employeeName}
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center bg-[#e6dfd0] text-[#676256] text-xs font-bold">
+                          {row.employeeName.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+                    <span className="text-sm font-semibold text-[#1a1c1b] truncate">{row.employeeName}</span>
+                  </div>
+                  <div className="col-span-1 md:col-span-2 text-sm text-[#1a1c1b]">{row.checkIn || '—'}</div>
+                  <div className="col-span-1 md:col-span-2 text-sm text-[#1a1c1b]">{row.checkOut || '—'}</div>
+                  <div className="col-span-1 md:col-span-2 text-sm font-semibold text-[#1a1c1b]">{row.workHours}</div>
+                  <div className="col-span-1 md:col-span-2 text-sm text-[#625e52]">{row.extraHours}</div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      ) : (
+        /* Plain employee: month summary + own history */
+        <>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <StatPill label="Days Present" value={monthSummary?.daysPresent ?? '—'} icon="event_available" />
+            <StatPill label="Leaves Count" value={monthSummary?.leavesCount ?? '—'} icon="beach_access" />
+            <StatPill label="Total Working Days" value={monthSummary?.totalWorkingDays ?? '—'} icon="calendar_month" />
+          </div>
+
+          <div className="bg-[#FFFFFF] rounded-[20px] bento-shadow overflow-hidden flex flex-col">
+            <div className="flex justify-between items-center gap-4 p-6 border-b border-[#eeeeeb]">
+              <div>
+                <h3 className="text-xl font-bold text-[#1a1c1b] tracking-tight">Monthly History</h3>
+                <p className="text-xs text-[#424844] mt-0.5">Your day-wise attendance</p>
+              </div>
+              <div className="flex items-center gap-1 bg-[#f4f4f1] rounded-full p-1">
+                <button
+                  onClick={goToPrevMonth}
+                  className="p-1.5 hover:bg-white rounded-full transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_left</span>
+                </button>
+                <span className="text-xs font-semibold text-[#1a1c1b] px-2">{monthLabel}</span>
+                <button
+                  onClick={goToNextMonth}
+                  className="p-1.5 hover:bg-white rounded-full transition-colors cursor-pointer"
+                >
+                  <span className="material-symbols-outlined text-[18px]">chevron_right</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="hidden md:grid grid-cols-12 gap-4 p-6 border-b border-[#eeeeeb] text-[#424844] text-xs font-semibold uppercase tracking-wider bg-[#faf9f7]/60">
+              <div className="col-span-4">Date</div>
+              <div className="col-span-2">Check In</div>
+              <div className="col-span-2">Check Out</div>
+              <div className="col-span-2">Work Hours</div>
+              <div className="col-span-2">Extra Hours</div>
+            </div>
+
+            <div className="flex flex-col divide-y divide-[#eeeeeb]">
+              {monthLoading ? (
+                <div className="p-12 text-center text-sm text-[#424844]">Loading attendance…</div>
+              ) : monthError ? (
+                <div className="p-12 text-center text-sm text-[#ba1a1a]">{monthError}</div>
+              ) : monthRows.length === 0 ? (
+                <div className="p-12 text-center text-sm text-[#424844]">
+                  No attendance records for this month.
+                </div>
+              ) : (
+                monthRows.map((row) => (
+                  <div
+                    key={row.date}
+                    className="grid grid-cols-1 md:grid-cols-12 gap-4 p-6 items-center hover:bg-[#faf9f7] transition-colors"
+                  >
+                    <div className="col-span-1 md:col-span-4 text-sm font-semibold text-[#1a1c1b]">
+                      {formatDisplayDate(row.date)}
+                    </div>
+                    <div className="col-span-1 md:col-span-2 text-sm text-[#1a1c1b]">{row.checkIn || '—'}</div>
+                    <div className="col-span-1 md:col-span-2 text-sm text-[#1a1c1b]">{row.checkOut || '—'}</div>
+                    <div className="col-span-1 md:col-span-2 text-sm font-semibold text-[#1a1c1b]">
+                      {row.workHours}
+                    </div>
+                    <div className="col-span-1 md:col-span-2 text-sm text-[#625e52]">{row.extraHours}</div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 };

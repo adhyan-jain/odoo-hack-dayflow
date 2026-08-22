@@ -11,7 +11,7 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
   currentUser,
   onEditProfile,
 }) => {
-  const isSarah = currentUser.id === 'usr-sarah';
+  const isSarah = currentUser.role === 'admin';
 
   const handleDownloadDoc = (docName: string) => {
     alert(`Downloading ${docName}...`);

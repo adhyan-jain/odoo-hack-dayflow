@@ -1,6 +1,6 @@
 "use client";
 
-import { AppProvider, useAppContext } from "@/context/AppContext";
+import { useAppContext } from "@/context/AppContext";
 import { SideNavBar } from "@/components/SideNavBar";
 import { TopNavBar } from "@/components/TopNavBar";
 import { MobileNavBar } from "@/components/MobileNavBar";
@@ -12,6 +12,7 @@ import { HelpModal } from "@/components/modals/HelpModal";
 
 function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const {
+    isLoading,
     currentTab,
     setCurrentTab,
     currentUser,
@@ -32,6 +33,14 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     notificationsModalOpen,
     helpModalOpen,
   } = useAppContext();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#F0EEE7] flex items-center justify-center">
+        <div className="w-10 h-10 rounded-full border-2 border-[#c1c8c3]/60 border-t-[#5b7a6b] animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#F0EEE7] flex text-[#1a1c1b] font-sans antialiased">

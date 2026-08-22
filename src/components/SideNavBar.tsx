@@ -15,8 +15,6 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
   onSelectTab,
   currentUser,
 }) => {
-  const isAlex = currentUser.id === 'usr-alex';
-
   const navItems = [
     { id: 'dashboard' as NavTabId, label: 'Dashboard', icon: 'dashboard', fill: true },
     { id: 'directory' as NavTabId, label: 'Directory', icon: 'group' },
@@ -38,7 +36,7 @@ export const SideNavBar: React.FC<SideNavBarProps> = ({
         title="Dayflow Home"
         aria-label="Dayflow Home"
       >
-        <span className="font-bold tracking-tight">{isAlex ? 'Df' : 'D'}</span>
+        <span className="font-bold tracking-tight">D</span>
       </button>
 
       {/* Navigation Icons Rail */}

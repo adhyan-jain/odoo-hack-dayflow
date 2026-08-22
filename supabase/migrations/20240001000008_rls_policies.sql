@@ -2,7 +2,7 @@
 -- Migration 008: Row Level Security (RLS) policies
 -- =============================================================================
 -- What: Enables RLS on all 7 tables and installs policies exactly as specified
---       in ARCHITECTURE.md §5. Two helper functions (current_role, is_admin_or_hr)
+--       in ARCHITECTURE.md §5. Two helper functions (current_employee_role, is_admin_or_hr)
 --       power all policies.
 --
 -- IMPORTANT BOUNDARY: RLS answers "is this row mine, or am I admin/hr?"
@@ -33,10 +33,14 @@ create or replace function public.current_employee_role()
 returns public.user_role
 language sql
 security definer
+set search_path = public
 stable
 as $$
   select role from public.employees where id = auth.uid();
 $$;
+
+revoke execute on function public.current_employee_role() from public;
+grant execute on function public.current_employee_role() to authenticated;
 
 -- is_admin_or_hr: used in every policy that allows admin/hr full access.
 -- Takes a uid parameter (rather than calling auth.uid() internally) so it can
@@ -45,6 +49,7 @@ create or replace function public.is_admin_or_hr(uid uuid)
 returns boolean
 language sql
 security definer
+set search_path = public
 stable
 as $$
   select exists (
@@ -52,6 +57,9 @@ as $$
     where id = uid and role in ('admin', 'hr')
   );
 $$;
+
+revoke execute on function public.is_admin_or_hr(uuid) from public;
+grant execute on function public.is_admin_or_hr(uuid) to authenticated;
 
 -- ── employees policies ────────────────────────────────────────────────────────
 -- WHAT: An employee can read and update their own row. Admin/HR can read and

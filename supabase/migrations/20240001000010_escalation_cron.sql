@@ -39,6 +39,7 @@ create or replace function public.escalate_overdue_leave_requests()
 returns void
 language plpgsql
 security definer
+set search_path = public
 as $$
 declare
   req                   record;
@@ -72,7 +73,7 @@ begin
       limit 1;
     end if;
 
-    -- Update the leave_request to escalated state
+    -- Update the leave_request to escalated state (only if it remains pending/non-escalated)
     update public.leave_requests
     set
       status       = 'escalated',
@@ -80,35 +81,44 @@ begin
       escalated_at = now(),
       escalated_to = skip_level_manager_id,
       updated_at   = now()
-    where id = req.id;
+    where id = req.id
+      and status = 'pending'
+      and escalated = false;
 
     -- Fire the send-notification Edge Function asynchronously via pg_net.
     -- The function URL and service_role_key are read from Postgres settings
     -- (set via 'alter database postgres set ...' or Supabase Vault).
-    -- NOTE: If current_setting() throws because the setting isn't set,
-    -- the whole cron job will fail. Set both settings before enabling cron.
-    perform net.http_post(
-      url     := current_setting('app.settings.edge_function_url') || '/send-notification',
-      headers := jsonb_build_object(
-        'Content-Type',  'application/json',
-        'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
-      ),
-      body    := jsonb_build_object(
-        'type',             'leave_escalated',
-        'leaveRequestId',   req.id,
-        'notifyEmployeeId', skip_level_manager_id
-      )
-    );
+    -- We wrap this in an exception block so that if notification fails
+    -- (e.g. pg_net not configured, or offline), the database escalation
+    -- update is NOT rolled back.
+    begin
+      perform net.http_post(
+        url     := current_setting('app.settings.edge_function_url') || '/send-notification',
+        headers := jsonb_build_object(
+          'Content-Type',  'application/json',
+          'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
+        ),
+        body    := jsonb_build_object(
+          'type',             'leave_escalated',
+          'leaveRequestId',   req.id,
+          'notifyEmployeeId', skip_level_manager_id
+        )
+      );
+    exception when others then
+      -- Swallow notification exceptions so database escalation transaction succeeds
+      raise warning 'Failed to send escalation notification for leave request %: %', req.id, SQLERRM;
+    end;
 
   end loop;
 end;
 $$;
 
+revoke execute on function public.escalate_overdue_leave_requests() from public;
+
 -- ── Schedule the cron job ─────────────────────────────────────────────────────
 -- Runs every 15 minutes (as per ARCHITECTURE.md §9 diagram).
--- The task prompt specified "every 6 hours" but ARCHITECTURE.md §9 says
--- "every 15 min" — ARCHITECTURE.md takes precedence per instructions.
--- To adjust: change '*/15 * * * *' to '0 */6 * * *' for every 6 hours.
+-- We unschedule first to ensure idempotency.
+select cron.unschedule('escalate-overdue-leave');
 
 select cron.schedule(
   'escalate-overdue-leave',     -- job name (unique, used to unschedule)

@@ -1,3 +1,5 @@
+// ── Frontend UI types (owned by frontend dev, do not modify) ─────────────────
+
 export type UserRole = 'employee' | 'admin';
 
 export interface UserProfile {
@@ -115,3 +117,29 @@ export interface PayrollRecord {
   deductions: number;
   netPay: number;
 }
+
+// ── Backend DB types (re-exported from lib/types.ts for API route consumers) ──
+// NOTE: The frontend dev uses the types above (UI shapes). These re-exports are
+// for backend API routes and any frontend code that directly consumes the API.
+// To avoid naming collisions, import from '@/lib/types' directly in API routes.
+export type {
+  AttendanceStatus,
+  Employee as DbEmployee,
+  Attendance as DbAttendance,
+  LeaveRequest as DbLeaveRequest,
+  SalaryRecord,
+  ReportingEdge,
+  LeaveBalance,
+  TeamCoverageConfig,
+  Resource,
+  Action,
+  AccessResult,
+  DateRange,
+  CoverageBreach,
+  CoverageResult,
+  PayslipBreakdown,
+  OrgNode,
+  OrgRewindResponse,
+  ApiResponse,
+  Database,
+} from '@/lib/types';

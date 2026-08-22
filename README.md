@@ -4,7 +4,33 @@ Every workday, perfectly aligned.
 
 Next.js (App Router, `src/` dir, TypeScript, Tailwind) frontend with Supabase as the backend (Postgres, Auth, RLS).
 
-## Getting started
+## Current Status: UI Integration
+
+The frontend UI blueprint has been integrated into the Next.js App Router structure. Currently, the application is using mock data via a React Context (`AppContext`) to demonstrate the UI and interactions. 
+
+### How to run the UI Demo
+
+To run the application and view the UI, you do not need to start the Supabase backend yet.
+
+1. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+2. Start the dev server:
+
+   ```bash
+   npm run dev
+   ```
+
+3. Open [http://localhost:3000](http://localhost:3000) in your browser. You can log in using the mock profiles to see the Employee and Admin dashboards.
+
+---
+
+## Full Stack Setup (Supabase)
+
+If you want to run the full stack with the backend:
 
 1. Copy the env template and fill in your Supabase project credentials:
 
@@ -12,20 +38,14 @@ Next.js (App Router, `src/` dir, TypeScript, Tailwind) frontend with Supabase as
    cp .env.local.example .env.local
    ```
 
-2. Install dependencies:
-
-   ```bash
-   npm install
-   ```
-
-3. Run the local Supabase stack (requires Docker) and apply migrations:
+2. Run the local Supabase stack (requires Docker) and apply migrations:
 
    ```bash
    npx supabase start
    npx supabase db reset
    ```
 
-4. Start the dev server:
+3. Start the dev server:
 
    ```bash
    npm run dev

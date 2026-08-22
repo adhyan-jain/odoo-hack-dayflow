@@ -1,10 +1,16 @@
+"use client";
+
+import { useAppContext } from "@/context/AppContext";
+import { AuthView } from "@/components/views/AuthView";
+
 export default function SignInPage() {
+  const { handleSignIn, alexUser, sarahUser } = useAppContext();
+
   return (
-    <main className="flex min-h-screen items-center justify-center p-8">
-      <div className="w-full max-w-sm space-y-6">
-        <h1 className="text-2xl font-semibold">Sign in to Dayflow</h1>
-        {/* TODO: email/password form using createClient() from @/lib/supabase/client */}
-      </div>
-    </main>
+    <AuthView
+      onSignIn={handleSignIn}
+      alexUser={alexUser}
+      sarahUser={sarahUser}
+    />
   );
 }

@@ -1,8 +1,24 @@
+"use client";
+
+import { useAppContext } from "@/context/AppContext";
+import { LeaveManagementView } from "@/components/views/LeaveManagementView";
+
 export default function LeavePage() {
+  const {
+    currentUser,
+    leaveRequests,
+    handleApproveLeave,
+    handleRejectLeave,
+    setApplyLeaveModalOpen,
+  } = useAppContext();
+
   return (
-    <div>
-      <h1 className="text-2xl font-semibold">Leave & Time-Off</h1>
-      {/* TODO: apply for leave (employee); approve/reject with comments (HR) */}
-    </div>
+    <LeaveManagementView
+      currentUser={currentUser}
+      leaveRequests={leaveRequests}
+      onApproveLeave={handleApproveLeave}
+      onRejectLeave={handleRejectLeave}
+      onOpenApplyModal={() => setApplyLeaveModalOpen(true)}
+    />
   );
 }

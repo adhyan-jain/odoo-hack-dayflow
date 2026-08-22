@@ -17,13 +17,16 @@
 --      (Direct path: https://supabase.com/dashboard/project/<project-ref>/database/extensions)
 --   2. Enable pg_net extension (needed for http_post to the Edge Function):
 --      Same Extensions tab → search "pg_net" → Enable
---   3. Set two Postgres secrets (used in the cron function):
---      Supabase Dashboard → Project Settings → Database → Vault or
---      run in SQL editor:
---        alter database postgres set "app.settings.edge_function_url" = 'https://<project-ref>.supabase.co/functions/v1';
---        alter database postgres set "app.settings.service_role_key"  = '<your-service-role-key>';
---      WARNING: service_role_key is sensitive — use Supabase Vault secrets
---               in production instead of a plain alter database statement.
+--   3. Store two secrets in Supabase Vault (built in, no extra extension
+--      needed, works under the standard postgres role — unlike
+--      `alter database ... set "app.settings.*"`, which Supabase Cloud now
+--      rejects with `42501: permission denied to set parameter`).
+--      Run in SQL editor:
+--        select vault.create_secret('https://<project-ref>.supabase.co/functions/v1', 'edge_function_url');
+--        select vault.create_secret('<your-service-role-key>', 'service_role_key');
+--      (Re-running with the same name errors on the unique constraint — use
+--       `select vault.update_secret(id, new_secret) ...` or delete the old
+--       row from vault.secrets first if you need to change a value.)
 --
 -- Depends on: migrations 001-005 (leave_requests, employees, reporting_edges)
 -- =============================================================================
@@ -34,7 +37,6 @@ create extension if not exists pg_cron;
 -- Enable pg_net for HTTP calls from SQL (required for Edge Function trigger)
 create extension if not exists pg_net;
 
--- ── Escalation function ───────────────────────────────────────────────────────
 create or replace function public.escalate_overdue_leave_requests()
 returns void
 language plpgsql
@@ -44,7 +46,15 @@ as $$
 declare
   req                   record;
   skip_level_manager_id uuid;
+  edge_function_url     text;
+  service_role_key      text;
 begin
+  select decrypted_secret into edge_function_url
+  from vault.decrypted_secrets where name = 'edge_function_url';
+
+  select decrypted_secret into service_role_key
+  from vault.decrypted_secrets where name = 'service_role_key';
+
   -- Find all pending, non-escalated leave requests past their SLA deadline.
   -- The partial index on leave_requests (migration 005) makes this fast.
   for req in
@@ -86,17 +96,17 @@ begin
       and escalated = false;
 
     -- Fire the send-notification Edge Function asynchronously via pg_net.
-    -- The function URL and service_role_key are read from Postgres settings
-    -- (set via 'alter database postgres set ...' or Supabase Vault).
+    -- The function URL and service_role_key are read from Supabase Vault
+    -- (fetched once above, outside the loop).
     -- We wrap this in an exception block so that if notification fails
     -- (e.g. pg_net not configured, or offline), the database escalation
     -- update is NOT rolled back.
     begin
       perform net.http_post(
-        url     := current_setting('app.settings.edge_function_url') || '/send-notification',
+        url     := edge_function_url || '/send-notification',
         headers := jsonb_build_object(
           'Content-Type',  'application/json',
-          'Authorization', 'Bearer ' || current_setting('app.settings.service_role_key')
+          'Authorization', 'Bearer ' || service_role_key
         ),
         body    := jsonb_build_object(
           'type',             'leave_escalated',

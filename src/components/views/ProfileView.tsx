@@ -246,18 +246,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 onClick={() => handleDownloadDoc('Employment_Agreement_2021.pdf')}
                 className="flex items-center justify-between p-3 rounded-xl bg-[#faf9f7] hover:bg-[#eeeeeb] transition-colors cursor-pointer group"
               >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[#5b7a6b] text-[20px]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="material-symbols-outlined text-[#5b7a6b] text-[20px] shrink-0">
                     description
                   </span>
-                  <div>
-                    <p className="text-sm font-semibold text-[#1a1c1b]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1a1c1b] truncate">
                       Employment_Agreement_{isSarah ? '2021' : '2022'}.pdf
                     </p>
                     <p className="text-xs text-[#625e52]">Signed • 1.2 MB</p>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-[#625e52] group-hover:text-[#1a1c1b] text-[18px]">
+                <span className="material-symbols-outlined text-[#625e52] group-hover:text-[#1a1c1b] text-[18px] shrink-0">
                   download
                 </span>
               </div>
@@ -266,18 +266,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 onClick={() => handleDownloadDoc('Benefits_Enrollment_Summary.pdf')}
                 className="flex items-center justify-between p-3 rounded-xl bg-[#faf9f7] hover:bg-[#eeeeeb] transition-colors cursor-pointer group"
               >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[#5b7a6b] text-[20px]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="material-symbols-outlined text-[#5b7a6b] text-[20px] shrink-0">
                     verified_user
                   </span>
-                  <div>
-                    <p className="text-sm font-semibold text-[#1a1c1b]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1a1c1b] truncate">
                       Benefits_Enrollment_Summary.pdf
                     </p>
                     <p className="text-xs text-[#625e52]">Verified • 480 KB</p>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-[#625e52] group-hover:text-[#1a1c1b] text-[18px]">
+                <span className="material-symbols-outlined text-[#625e52] group-hover:text-[#1a1c1b] text-[18px] shrink-0">
                   download
                 </span>
               </div>
@@ -286,18 +286,18 @@ export const ProfileView: React.FC<ProfileViewProps> = ({
                 onClick={() => handleDownloadDoc('2023_Tax_Withholding_W2.pdf')}
                 className="flex items-center justify-between p-3 rounded-xl bg-[#faf9f7] hover:bg-[#eeeeeb] transition-colors cursor-pointer group"
               >
-                <div className="flex items-center gap-3">
-                  <span className="material-symbols-outlined text-[#5b7a6b] text-[20px]">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="material-symbols-outlined text-[#5b7a6b] text-[20px] shrink-0">
                     receipt_long
                   </span>
-                  <div>
-                    <p className="text-sm font-semibold text-[#1a1c1b]">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-[#1a1c1b] truncate">
                       2023_Tax_Withholding_W2.pdf
                     </p>
                     <p className="text-xs text-[#625e52]">Tax document • 250 KB</p>
                   </div>
                 </div>
-                <span className="material-symbols-outlined text-[#625e52] group-hover:text-[#1a1c1b] text-[18px]">
+                <span className="material-symbols-outlined text-[#625e52] group-hover:text-[#1a1c1b] text-[18px] shrink-0">
                   download
                 </span>
               </div>

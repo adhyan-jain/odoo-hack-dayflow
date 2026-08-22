@@ -41,7 +41,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
           <p className="text-[#424844] text-sm mt-0.5">Real-time status across all departments</p>
         </div>
 
-        <div className="relative flex items-center">
+        <div className="relative flex items-center w-full sm:w-auto">
           <span className="material-symbols-outlined absolute left-3.5 text-[#727974] pointer-events-none text-[20px]">
             search
           </span>
@@ -50,7 +50,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search employees, IDs..."
-            className="pl-10 pr-4 py-2 rounded-full bg-[#FFFFFF] border border-[#c1c8c3]/40 focus:ring-2 focus:ring-[#5b7a6b] text-sm w-64 md:w-80 transition-all outline-none placeholder:text-[#424844]/50 shadow-sm"
+            className="pl-10 pr-4 py-2 rounded-full bg-[#FFFFFF] border border-[#c1c8c3]/40 focus:ring-2 focus:ring-[#5b7a6b] text-sm w-full sm:w-64 md:w-80 transition-all outline-none placeholder:text-[#424844]/50 shadow-sm"
           />
         </div>
       </div>

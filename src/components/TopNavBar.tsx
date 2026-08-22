@@ -122,7 +122,7 @@ export const TopNavBar: React.FC<TopNavBarProps> = ({
                 className="fixed inset-0 z-40"
                 onClick={() => setProfileDropdownOpen(false)}
               />
-              <div className="absolute right-0 mt-2 w-64 bg-[#FFFFFF] rounded-2xl shadow-floating border border-[#c1c8c3]/30 p-2 z-50 animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 mt-2 w-64 max-w-[calc(100vw-2rem)] bg-[#FFFFFF] rounded-2xl shadow-floating border border-[#c1c8c3]/30 p-2 z-50 animate-in fade-in zoom-in-95">
                 <div className="p-3 border-b border-[#eeeeeb] flex items-center gap-3">
                   <img
                     src={currentUser.avatar}

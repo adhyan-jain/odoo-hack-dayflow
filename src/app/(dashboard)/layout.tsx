@@ -44,7 +44,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col md:pl-[72px] min-h-screen pb-20 md:pb-6">
+      <div className="flex-1 flex flex-col min-w-0 md:pl-[72px] min-h-screen pb-20 md:pb-6">
         {/* Top Header Bar */}
         <TopNavBar
           currentTab={currentTab}

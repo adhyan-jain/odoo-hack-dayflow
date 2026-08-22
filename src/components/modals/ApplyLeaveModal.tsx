@@ -107,7 +107,7 @@ export const ApplyLeaveModal: React.FC<ApplyLeaveModalProps> = ({
             </select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="text-xs font-semibold text-[#1a1c1b] uppercase tracking-wider block mb-1.5">
                 Start Date
